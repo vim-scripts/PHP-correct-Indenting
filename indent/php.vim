@@ -2,8 +2,11 @@
 " Language:	PHP
 " Author:	John Wellesz <John.wellesz (AT) teaser (DOT) fr>
 " URL:		http://www.2072productions.com/vim/indent/php.vim
-" Last Change: 2005 Janury 15th
-" Version: 1.09
+" Last Change: 2005 February 10th
+" Version: 1.10
+"
+" Changes: 1.10		- Lines beginning by a single or double quote were
+"					  not indented in some cases.
 "
 " Changes: 1.09		- JavaScript code was not always directly indented.
 "
@@ -331,7 +334,8 @@ function! IslinePHP (lnum, tofind) " {{{
 	let cline = getline(a:lnum)
 
 	if a:tofind==""
-		let tofind = '\%(^\s*\)\@<=\S'
+		let tofind = "^\\s*[\"']*\s*\\zs\\S" " This correct the issue where lines beginning by a 
+		" single or double quote were not indented in some cases.
 	else
 		let tofind = a:tofind
 	endif
