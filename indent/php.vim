@@ -2,8 +2,18 @@
 " Language:	PHP
 " Author:	John Wellesz <John.wellesz (AT) teaser (DOT) fr>
 " URL:		http://www.2072productions.com/vim/indent/php.vim
-" Last Change:	2004 December 27th
-" Version: 1.07
+" Last Change: 2005 Janury 10th
+" Version: 1.08
+"
+" Changes: 1.08		- End comment tags '*/' are indented like start tags '/*'.
+"					- When typing a multiline comment, '}' are indented
+"					  according to other commented '{'.
+"					- Added a new option 'PHP_removeCRwhenUnix' to
+"					  automatically remove CR at end of lines when the file
+"					  format is Unix.
+"					- Changed the file format of this very file to Unix.
+"					- This version seems to correct several issues some people
+"					  had with 1.07.
 "
 " Changes: 1.07		- Added support for "Here document" tags:
 "					   - HereDoc end tags are indented properly.
@@ -23,7 +33,6 @@
 "					  of the following PHP code.
 "					- Other minor improvements and corrections.
 "
-"
 " Changes: 1.06:    - Switch block were no longer indented correctly...
 "					- Added an option to use a default indenting instead of 0.
 "					  (whereas I still can't find any good reason to use it!)
@@ -35,7 +44,6 @@
 " Changes: 1.05:    - Lines containing "<?php ?>" and "?> <?php"
 "					  (start and end tag on the same line) are no
 "					  longer indented at col 1 but as normal code.
-"
 "
 " Changes: 1.04:	- Strings containing "//" could break the indenting
 "					  algorithm.
@@ -59,7 +67,6 @@
 "
 " Changes: 1.01:	- Some little bug corrections reguarding automatic optimized
 "					  mode that missed some tests and could break the indenting.
-"
 "					- There is also a problem with complex non bracked structures, when several
 "					  else are following each other, the algorithm do not indent the way it
 "					  should.
@@ -99,24 +106,45 @@
 "
 
 " NOTE: This script must be used with PHP syntax ON and with the php syntax
-" script by Lutz Eymers (http://www.isp.de/data/php.vim ) . Else it won't be able to
-" work correctly.
+"		script by Lutz Eymers (http://www.isp.de/data/php.vim ) that's the script bundled with Gvim.
 "
 "	This script set the option php_sync_method of PHP syntax script to 0
 "	(fromstart indenting method) in order to have an accurate syntax.
+"	If you are using very big PHP files (which is a bad idea) you will
+"	experience slowings down while editing, if your code contains only PHP
+"	code you can comment the line below.
+
+let php_sync_method = 0
+
 "
 "	In the case you have syntax errors in your script such as end of HereDoc
 "	tags not at col 1 you'll have to indent your file 2 times (This script 
 "	will automatically put HereDoc end tags at col 1).
 " 
 
-" Options: PHP_default_indenting = # of sw (default is 0).
+" NOTE: If you are editing file in Unix file format and that (by accident)
+" there are '\r' before new lines, this script won't be able to proceed
+" correctly and will make many mistakes because it won't be able to match
+" '\s*$' correctly.
+" So you have to remove those useless characters first with a command like:
+"
+" :%s /\r$//g
+"
+" or simply 'let' the option PHP_removeCRwhenUnix to 1 and the script will
+" silently remove them when VIM load this script (at each bufread).
 
-" This script uses the syntax to test matching {}, comments, <??> validity
-" and to know if the line it is ask to indent is php code or not...
-" Unfortunately for complex files the search syntax method isn't accurate so
-" we must use the fromstart sync method.
-let php_sync_method = 0
+" Options: PHP_default_indenting = # of sw (default is 0), # of sw will be
+"		   added to the indent of each line of PHP code.
+"
+" Options: PHP_removeCRwhenUnix = 1 to make the script automatically remove CR
+"		   at end of lines (by default this option is unset), NOTE that you
+"		   MUST remove CR when the fileformat is UNIX else the indentation
+"		   won't be correct...
+
+if &fileformat == "unix" && exists("PHP_removeCRwhenUnix") && PHP_removeCRwhenUnix
+	let myul=&ul
+	silent! %s/\r$//g
+endif
 
 if exists("PHP_default_indenting")
 	let b:PHP_default_indenting = PHP_default_indenting * &sw
@@ -124,7 +152,7 @@ else
 	let b:PHP_default_indenting = 0
 endif
 " Only load this indent file when no other was loaded. But reset those state
-" variables if needed
+" variables
 
 let b:PHP_lastindented = 0
 let b:PHP_indentbeforelast = 0
@@ -137,6 +165,7 @@ let b:InPHPcode_checked = 0
 let b:InPHPcode_and_script = 0
 let b:InPHPcode_tofind = ""
 let b:PHP_oldchangetick = b:changedtick
+let b:UserIsTypingComment = 0
 
 if exists("b:did_indent")
 	finish
@@ -147,8 +176,7 @@ setlocal nosmartindent
 
 setlocal nolisp
 setlocal indentexpr=GetPhpIndent()
-"setlocal indentkeys+=0=,0),=EO
-setlocal indentkeys=0{,0},0),:,!^F,o,O,e,*<Return>,=?>,=<?
+setlocal indentkeys=0{,0},0),:,!^F,o,O,e,*<Return>,=?>,=<?,=*/
 
 " Only define the function once.
 if exists("*GetPhpIndent")
@@ -230,14 +258,10 @@ function! Skippmatch()  " {{{
 	" times faster but you may have troubles with '{' inside comments or strings
 	" that will break the indent algorithm...
 	let synname = synIDattr(synID(line("."), col("."), 0), "name")
-	" echo synname . line(".")
-	if synname == "phpParent" || synname == "javaScriptBraces"
-	"if synname =~? "string" || synname =~? "phpComment" || synname =~? "phpHereDoc"
+	if synname == "phpParent" || synname == "javaScriptBraces" || synname == "phpComment" && b:UserIsTypingComment
 		return 0
-		"return 1
 	else
 		return 1
-		"return 0
 	endif
 endfun
 " }}}
@@ -282,6 +306,7 @@ function! FindTheIfOfAnElse (lnum, StopAfterFirstPrevElse) " {{{
 	if !s:iftoskip && a:StopAfterFirstPrevElse && getline(beforeelse) =~# '^\s*\%([}]\s*\)\=else\%(if\)\=\>'
 		return beforeelse
 	endif
+
 	" if there was an else, then there is a if...
 	if getline(beforeelse) !~# '^\s*if\>' && beforeelse>1 || s:iftoskip && beforeelse>1
 		
@@ -338,7 +363,6 @@ function! GetPhpIndent()
 		let UserIsEditing=1
 	endif
 
-
 	if b:PHP_default_indenting
 		let b:PHP_default_indenting = g:PHP_default_indenting * &sw
 	endif
@@ -368,8 +392,6 @@ function! GetPhpIndent()
 		let b:PHP_LastIndentedWasComment=0
 		let b:PHP_indentbeforelast = 0
 		
-		let UserIsEditing=0 " user did changed
-
 		let b:InPHPcode = 0
 		let b:InPHPcode_checked = 0
 		let b:InPHPcode_and_script = 0
@@ -393,11 +415,17 @@ function! GetPhpIndent()
 			if synname != "phpHereDoc"
 				let b:InPHPcode = 1
 				let b:InPHPcode_tofind = ""
+				if synname == "phpComment"
+					let b:UserIsTypingComment = 1
+				else
+					let b:UserIsTypingComment = 0
+				endif
 			else
 				let b:InPHPcode = 0
+				let b:UserIsTypingComment = 0
 
 				let lnum = v:lnum - 1
-				while getline(lnum) !~? '<<<\a\w*$' && lnum >1
+				while getline(lnum) !~? '<<<\a\w*$' && lnum > 1
 					let lnum = lnum - 1
 				endwhile
 
@@ -405,6 +433,7 @@ function! GetPhpIndent()
 			endif
 		else
 			let b:InPHPcode = 0
+			let b:UserIsTypingComment = 0
 			" Then we have to find a php start tag...
 			let b:InPHPcode_tofind = '<?\%(.*?>\)\@!\|<script.*>'
 		endif
@@ -423,8 +452,12 @@ function! GetPhpIndent()
 		if cline =~? b:InPHPcode_tofind
 			let	b:InPHPcode = 1
 			let b:InPHPcode_tofind = ""
-			if cline =~ '\*/'
-				return -1 " we don't want to indent closing '*/'
+			let b:UserIsTypingComment = 0
+			if cline =~ '\*/' " End comment tags must be indented like start comment tags
+				call cursor(v:lnum, 1)
+				call search('\*/\zs', 'W')
+				let lnum = searchpair('/\*\zs', '', '\*/\zs', 'bWr', '') " find the most outside /*
+				return indent(lnum)
 			elseif cline =~? '<script\>' " a more accurate test is useless since there isn't any other possibility
 				let b:InPHPcode_and_script = 1
 			endif
@@ -545,6 +578,14 @@ function! GetPhpIndent()
 		return ind
 	endif
 
+	" While editing check for end of comment and indent it like its beginning
+	if UserIsEditing && cline =~ '\*/' " End comment tags must be indented like start comment tags
+		call cursor(v:lnum, 1)
+		call search('\*/\zs', 'W')
+		let lnum = searchpair('/\*\zs', '', '\*/\zs', 'bWr', '') " find the most outside /*
+		return indent(lnum)
+	endif
+	
 	let LastLineClosed = 0 " used to prevent redundant tests in the last part of the script
 
 	let unstated='\%(^\s*'.s:blockstart.'.*)\|\%(//.*\)\@<!\<e'.'lse\>\)'.endline
@@ -710,3 +751,4 @@ function! GetPhpIndent()
 endfunction
 
 " vim: set ts=4 sw=4:
+" vim: set ff=unix:
