@@ -1,10 +1,17 @@
 " Vim indent file
 " Language:	PHP
-" Author:	John wellesz <John.wellesz (AT) teaser (DOT) fr> inspired from the original version
-"  by Miles Lott <milos (AT) groupwhere (DOT) org>
+" Author:	John wellesz <John.wellesz (AT) teaser (DOT) fr>
 " URL:		http://www.2072productions.com/vim/indent/php.vim
-" Last Change:	2004 December 16th
-" Version: 1.05
+" Last Change:	2004 December 20th
+" Version: 1.06
+"
+" Changes: 1.06:    - Switch block were no longer indented correctly...
+"					- Added an option to use a default indenting instead of 0.
+"					  (whereas I still can't find any good reason to use it!)
+"					- A problem with ^\s*);\= lines where ending a non '{}'
+"					  structure.
+"					- Changed script local variable to be buffer local
+"					  variable instead.
 "
 " Changes: 1.05:    Lines containing "<?php ?>" and "?> <?php"
 "					(start and end tag on the same line) are no
@@ -40,7 +47,7 @@
 "					should.
 "					That will be corrected in the next version.
 " 
-" Changes: improvments with regard to the original version (0.5) by Miles Lott:
+" Changes: improvments with regard to the original version (0.5) by Miles Lott (whose this script was inspired):
 "			   - Commented part of code or non PHP code no longer break the
 "				 indent algorithm, the content of those parts are indented
 "				 separatly
@@ -66,15 +73,6 @@
 "			   - PHP open and close tags are always set to col 1 as for the
 "			   immediate following php code
 "			   
-" Changes: (previous versions by Miles Lott)
-"
-"		   0.5 - fix duplicate indent on open tag, and empty bracketed
-"          statements.
-"          0.4 - Fixes for closing php tag, switch statement closure, and php_indent_shortopentags
-"          option from Steffen Bruentjen <vim (AT) kontraphon (DOT) de>
-"
-"
-"
 "  If you find a bug, please e-mail me at John.wellesz (AT) teaser (DOT) fr
 "  with an example of code that break the algorithm.
 "
@@ -83,14 +81,24 @@
 "
 
 
+
+" Options: PHP_default_indenting = # of sw (default is 0).
+
+
+
+if exists("PHP_default_indenting")
+	let b:PHP_default_indenting = PHP_default_indenting * &sw
+else
+	let b:PHP_default_indenting = 0
+endif
 " Only load this indent file when no other was loaded. But reset those state
 " variables if needed
 
-let s:lastindented = 0
-let s:indentbeforelast = 0
-let s:indentinghuge = 0
-let s:CurrentIndentLevel = 0
-let s:LastIndentedWasComment = 0
+let b:PHP_lastindented = 0
+let b:PHP_identbeforelast = 0
+let b:PHP_indentinghuge = 0
+let b:PHP_CurrentIndentLevel = b:PHP_default_indenting
+let b:PHP_LastIndentedWasComment = 0
 
 if exists("b:did_indent")
 	finish
@@ -109,13 +117,12 @@ if exists("*GetPhpIndent")
 endif
 
 "TODO:	FIX THE PROBLEM THAT WILL OCCUR IF A BLOCK STARTER IS DEFINED OVER
-"		SEVERAL LINES (maybe include && || as starters too...)
+"		SEVERAL LINES
 "update: partially fixed
 
 "TODO:	Detect /**/ comment type and format them properly ie: don't loose time
 "		on them
 "		Indent them sligthly higher than the rest
-
 
 let s:endline= '\s*\(//.*\|#.*\|/\*.*\*/\s*\)\=$'
 " setlocal  debug=msg
@@ -215,7 +222,6 @@ function! FindTheIfOfAnElse (lnum, StopAfterFirstPrevElse) " {{{
 endfunction
 " }}}
 
-
 let s:blockstart = '\(\(\(}\s*\)\=else\)\=if\>\|while\>\|for\(each\)\=\>\|declare\|||\|&&\>\)'
 
 function! GetPhpIndent()
@@ -223,53 +229,57 @@ function! GetPhpIndent()
 	"########### MAIN INDENT FUNCTION #############
 	"##############################################
 
+	if b:PHP_default_indenting
+		let b:PHP_default_indenting = g:PHP_default_indenting * &sw
+	endif
+
 	" Let's detect if we are indenting just one line or more than 3 lines
 	" in the last case we can slightly optimize our algorithm
-	if !s:indentinghuge && s:lastindented > s:indentbeforelast 
-		if s:indentbeforelast
-			let s:indentinghuge = 1
+	if !b:PHP_indentinghuge && b:PHP_lastindented > b:PHP_identbeforelast 
+		if b:PHP_identbeforelast
+			let b:PHP_indentinghuge = 1
 			echom 'Large indenting detected, speed optimizations engaged'
 		endif
-		let s:indentbeforelast = s:lastindented
+		let b:PHP_identbeforelast = b:PHP_lastindented
 	endif
 
 	" If the line we are indenting isn't directly under the previous non-blank
 	" line of the file then deactivate the optimization procedure
-	if s:indentinghuge && prevnonblank(v:lnum - 1) != s:lastindented
+	if b:PHP_indentinghuge && prevnonblank(v:lnum - 1) != b:PHP_lastindented
 		echom 'Large indenting deactivated'
-		let s:indentinghuge = 0
-		let s:indentbeforelast = 0
-		let s:lastindented = 0
-		let s:CurrentIndentLevel = 0
-		let s:LastIndentedWasComment=0
-	elseif v:lnum > s:lastindented
-		let s:lastindented = v:lnum
+		let b:PHP_indentinghuge = 0
+		let b:PHP_identbeforelast = 0
+		let b:PHP_lastindented = 0
+		let b:PHP_CurrentIndentLevel = b:PHP_default_indenting
+		let b:PHP_LastIndentedWasComment=0
+	elseif v:lnum > b:PHP_lastindented
+		let b:PHP_lastindented = v:lnum
 	endif
 
 	let s:level = 0
 
 	let cline = getline(v:lnum) " current line
 
-	if s:indentinghuge && cline =~'^\s*//'
-		if s:LastIndentedWasComment==1
-			return indent(s:lastindented) "  line replaced in 1.02
+	if b:PHP_indentinghuge && cline =~'^\s*//'
+		if b:PHP_LastIndentedWasComment==1
+			return indent(b:PHP_lastindented) "  line replaced in 1.02
 		endif
-		let s:LastIndentedWasComment=1
+		let b:PHP_LastIndentedWasComment=1
 	else
-		let s:LastIndentedWasComment=0
+		let b:PHP_LastIndentedWasComment=0
 	endif
 
 	" Find an executable php code line above the current line.
 	let lnum = GetLastRealCodeLNum(v:lnum - 1)
 
-	" Hit the start of the file, use zero indent.
-	if lnum == 0
-		return 0
-	endif
 	let cline = getline(v:lnum) " current line
 	let last_line = getline(lnum)    " last line
 	let ind = indent(lnum) " by default
 	let endline= s:endline
+
+	if ind==0 && b:PHP_default_indenting
+		let ind = b:PHP_default_indenting
+	endif
 
 	" PHP start tags are always at col 1, useless to indent unless the end tag
 	" is on the same line
@@ -279,8 +289,12 @@ function! GetPhpIndent()
 
 	" PHP end tags are always at col 1, useless to indent unless if it's
 	" followed by a start tag on the same line
-	if  cline =~ '^\s*?>'  && cline !~# '<?\(php\)\='  
+	if  cline =~ '^\s*?>' && cline !~# '<?\(php\)\='  
 		return 0
+	endif
+	" Hit the start of the file, use zero indent.
+	if lnum == 0
+		return b:PHP_default_indenting
 	endif
 
 	" if the last line is a stated line and it's not indented then why should
@@ -289,22 +303,19 @@ function! GetPhpIndent()
 	" or the end of a possible bracketless thing then indent the same as the previous
 	" line
 	if last_line =~ '[;}]'.endline
-		if ind==0
-			return 0
-		elseif s:indentinghuge && ind==s:CurrentIndentLevel && getline(GetLastRealCodeLNum(lnum - 1))=~';'.endline && cline !~# '^\s*\(else\|[})];\=\)' && last_line !~# '^\s*\(\(}\s*\)\=else\)'
-			return s:CurrentIndentLevel
+		if ind==b:PHP_default_indenting
+			return b:PHP_default_indenting
+		elseif b:PHP_indentinghuge && ind==b:PHP_CurrentIndentLevel && getline(GetLastRealCodeLNum(lnum - 1))=~';'.endline && cline !~# '^\s*\(else\|\(case\|default\).*:\|[})];\=\)' && last_line !~# '^\s*\(\(}\s*\)\=else\)'
+			return b:PHP_CurrentIndentLevel
 		endif
-		"elseif ind==0  " Lines inverted in version 1.03
-		"	return 0
-		"endif
 	endif
 
 	" Search the matching open bracket (with searchpair()) and set the indent of cline
 	" to the indent of the matching line.
 	if cline =~ '^\s*}\(}}\)\@!'
 		let ind = indent(FindOpenBracket(v:lnum))
-		" let s:CurrentIndentLevel = ind " removed in 1.02
-		let s:CurrentIndentLevel = 0 " added in 1.02, optimized mode could do bad things in some cases
+		" let b:PHP_CurrentIndentLevel = ind " removed in 1.02
+		let b:PHP_CurrentIndentLevel = b:PHP_default_indenting "XXX added in 1.02, optimized mode could do bad things in some cases
 		return ind
 	endif
 
@@ -320,8 +331,8 @@ function! GetPhpIndent()
 
 	" if the current line is an 'else' starting line
 	" (to match an 'else' preceded by a '}' is irrelevant and futile)
-	if ind && cline =~# '^\s*else\(if\)\=\>'
-		let s:CurrentIndentLevel = 0 "line added in version 1.02 to prevent optimized mode from acting in some special cases
+	if ind != b:PHP_default_indenting && cline =~# '^\s*else\(if\)\=\>'
+		let b:PHP_CurrentIndentLevel = b:PHP_default_indenting "line added in version 1.02 to prevent optimized mode from acting in some special cases
 		return indent(FindTheIfOfAnElse(v:lnum, 1))
 	elseif last_line =~# unstated && cline !~ '^\s*{\|^\s*);\='.endline
 		let ind = ind + &sw
@@ -341,20 +352,20 @@ function! GetPhpIndent()
 		"					lkhlkh();
 		"					echo 'infinite loop\n';
 		"				}
-	elseif ind && last_line =~ '\(^\s*)\)\@<!;'.endline.'\|^\s*}\(.*{'. endline.'\)\@!'
+	elseif ind != b:PHP_default_indenting && last_line =~ ';'.endline.'\|^\s*}\(.*{'. endline.'\)\@!'
 		" If we are here it means that the previous line is:
-		" - not a [beginning-blanck]);$ line but a *;$ line
+		" - a *;$ line
 		" - a [beginning-blanck]} followed by anything but a {$
 		let previous_line = last_line
 		let last_line_num = lnum
 		let LastLineClosed = 1
-
 		" The idea here is to check if the current line is after a non '{}'
 		" structure so we can indent it like the top of that structure.
 		" The top of that structure is caracterized by a if (ff)$ style line
 		" preceded by a stated line. If there is no such structure then we
 		" just have to find two 'normal' lines following each other with the
-		" same indentation...
+		" same indentation and with the first of these two lines terminated by
+		" a ; or by a }...
 		
 		while 1
 			" let's skip '{}' blocks
@@ -384,28 +395,25 @@ function! GetPhpIndent()
 				" A good quality is to have confidence in oneself so to know
 				" if yes or no we are in that struct lets test the ident of
 				" last_line_num and of last_line_num - 1!
-				" If those are == then we are done.
+				" If those are == then we are almost done.
 				"
-				" But that isn't sufficient, we need to test how those lines
-				" are ended...
+				" That isn't sufficient, we need to test how the first of the
+				" 2 lines is ended...
 			
 				" Note the indenting of the line we are checking
-				let last_match = last_line_num
+
+				let last_match = last_line_num " remember the top line we found so far
 					
 				let one_ahead_indent = indent(last_line_num)
 				let last_line_num = GetLastRealCodeLNum(last_line_num - 1)
 				let two_ahead_indent = indent(last_line_num)
 				let after_previous_line = previous_line
 				let previous_line = getline(last_line_num)
+			
 				
-				" The 3 lines below were the 'optimization' at the origin of the bug of version 1.03
-				"if two_ahead_indent==0
-				"	let last_match=0 " a non-sense, last_match is a line number...
-				"endif
-				
-				" If we find a '{' then we are inside that block so lets
+				" If we find a '{' or a case/default then we are inside that block so lets
 				" indent properly... Like the line following that '{'
-				if previous_line =~ '{'.endline
+				if previous_line =~ '^\s*\(case\|default\).*:\|{'.endline
 					break
 				endif
 
@@ -418,8 +426,11 @@ function! GetPhpIndent()
 				
 				if one_ahead_indent == two_ahead_indent || last_line_num < 1 
 					" So the previous line and the line before are at the same
-					" col. Now we just have to check if the line before is a ;$ or [})]$ ended line but not a ^);$ one
-					if previous_line =~# '\(\(\(^\s*)\)\@<!;\)\|[})]\)'.endline || last_line_num < 1
+					" col. Now we just have to check if the line before is a ;$ or [}]$ ended line
+					" we always check the most ahead line of the 2 lines so
+					" it's useless to match ')$' since the lines couldn't have
+					" the same indent...
+					if previous_line =~# '[;}]'.endline || last_line_num < 1
 						break
 					endif
 				endif
@@ -427,13 +438,13 @@ function! GetPhpIndent()
 		endwhile
 
 		if indent(last_match) != ind " if nothing was done lets the old script continue
-			let ind = indent(last_match) " return to previous level
-			let s:CurrentIndentLevel = 0 " line added in version 1.02 to prevent optimized mode
+			let ind = indent(last_match) " let's use the indent of the last line matched by the alhorithm above
+			let b:PHP_CurrentIndentLevel = b:PHP_default_indenting "line added in version 1.02 to prevent optimized mode
 										 " from acting in some special cases
-			"let s:CurrentIndentLevel = ind " line added in 1.01 and removed in 1.02 - wrong solution
 			return ind
 		endif
 	endif
+
 
 	let plinnum = GetLastRealCodeLNum(lnum - 1)
 	let pline = getline(plinnum) " previous to last line
@@ -444,31 +455,32 @@ function! GetPhpIndent()
 	" removes // that are not followed by any '"'
 	" Sorry for this unreadable thing...
 	 let last_line = substitute(last_line,"\\(//\\|#\\)\\(\\(\\([^\"']*\\([\"']\\)[^\"']*\\5\\)\\+[^\"']*$\\)\\|\\([^\"']*$\\)\\)",'','')
-	" echo last_line
-	" Indent blocks enclosed by {} or () or case statements (default
-	" indenting)
-	if LastLineClosed==0 && last_line =~# '\([{(]\|case.*:\)'.endline || LastLineClosed==0 && pline !~ '[,(]'.endline && last_line =~? '[a-z_]\w*\s*(.*,$'
-		let ind = ind + &sw
-		" return if the current line is not another case statement of the previous line is a bracket open
-		if  LastLineClosed==0 && last_line =~ '[{(]'.endline || cline !~# '.*case.*:\|default:'
-			let s:CurrentIndentLevel = ind
-			return ind
+
+	" Indent blocks enclosed by {} or () (default indenting)
+	if !LastLineClosed " the last line isn't an .*; or a }$ line
+		" if the last line is a [{(]$ or a multiline function call (or array
+		" declaration) with
+		" already one parameter on the opening ( line
+		if last_line =~# '[{(]'.endline || last_line =~? '[a-z_]\w*\s*(.*,$' && pline !~ '[,(]'.endline
+			let ind = ind + &sw
+			if cline !~# '^\s*\(default\|case\).*:' " case and default are not indented inside blocks
+				let b:PHP_CurrentIndentLevel = ind
+				return ind
+			endif
 		endif
 	endif
-	if cline =~# '^\s*);\=\|^\s*case.*:\|^\s*default:'
+
+	if cline =~  '^\s*);\='
 		let ind = ind - &sw
-		" if the last line is a break or return, or the current line is a close bracket,
-		" or if the previous line is a default statement, subtract another
-		if pline =~ '^\s*default:' && last_line =~# '^\s*break;\|^\s*return' && cline =~ '^\s*);\='
-			let ind = ind - &sw
-		endif
+	elseif cline =~# '^\s*\(default\|case\).*:'
+		let ind = ind - &sw
 	endif
 
-	if last_line =~# '^\s*default:'
+	if last_line =~# '^\s*\(default\|case\).*:'
 		let ind = ind + &sw
 	endif
 
-	let s:CurrentIndentLevel = ind
+	let b:PHP_CurrentIndentLevel = ind
 	return ind
 endfunction
 
