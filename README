@@ -1,0 +1,108 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=1120
+
+(The version 1.23 of this script is already included in VIM 7)
+
+Features:
+- Indent "perfectly" PHP code.
+- Comment or non-PHP code doesn't break the algorithm.
+- Non-PHP code, multiline /**/ comments and "Here Document" content remain unchanged.
+- HTML <Script.*> tags are indented as PHP and like if their content was part of the surrounding PHP code.
+- Fast optimized indenting, the script knows when it's indenting large blocks and skips some unnecessary tests...
+- Support folding (folds don't break the indenting)
+- Auto-formatting for comments (using the Vim option formatoptions=qroc).
+- Indent correctly complex "non bracketted blocks" (like in language C):
+
+    Example: (start of line spaces are replaced by ____)
+<?php
+if (!isset($History_lst_sel)) 
+____if (!isset($History_lst_sel)) 
+________if (!isset($History_lst_sel)) {
+____________$History_lst_sel=0;
+________} else
+____________$foo="truc";
+____else
+_______$bla= "foo";
+$command_hist = TRUE;
+?>
+
+- Direct indenting, the text is indented as you type it.
+- switch/case are indented correctly.
+- Script source code well commented.
+- Bug free as far as I know :)
+
+A more complete example of its capabilities:
+
+<?php
+if ($foo="thing") // as you see an opened bracket isn't needed to indent correctly :)
+____if (foo("something"))
+____{
+________somethingelse("blabla");
+?>
+
+
+<html>
+<head>
+<title>SOME HTML CODE</title>
+<?
+________echo "Something here";
+?>
+________<script type="text/javascript">
+________// Note the indentation of the script as if part of PHP
+
+________var truc=0;
+________if (truc) {
+____________nothing();
+________}
+
+________</script>
+
+</head>
+<body>
+
+<b>some closing and oppenning bracket here } } {
+nothing to indent here :)
+</b>
+
+</body>
+</html>
+
+
+<?
+________Somethingelse(true);
+____}
+
+if (foo)
+____/* a useless comment here
+____with useless code:
+____if (broken code) {
+___________________blabla();
+____*/
+____if (testHereDocument()) {
+
+
+________echo <<<HEREDOC
+Here is an Here Document style
+echo, very useful.
+The following code isn't indented
+if (test)
+while (foo) {
+nothing();
+}
+HEREDOC;
+
+____}
+
+bye();
+?>
+
+That's all folks!
+
+This script can also be found there: (with colorful examples)
+http://www.2072productions.com/?to=phpindent.txt
+
+There is also a newsletter where you can subscribe at:
+http://www.2072productions.com/?to=php-indent-for-vim-newsletter.php
+(only about new releases of this script)
+
+Enjoy :)
+
