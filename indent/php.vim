@@ -2,8 +2,13 @@
 " Language:	PHP
 " Author:	John Wellesz <John.wellesz (AT) teaser (DOT) fr>
 " URL:		http://www.2072productions.com/vim/indent/php.vim
-" Last Change: 2005 February 10th
-" Version: 1.10
+" Last Change: 2005 May 17th
+" Version: 1.11
+"
+"
+" Changes: 1.11		- If the "case" of a "switch" wasn't alone on its line
+"					  and if the "switch" was at col 0 (or at default indenting)
+"					  the lines following the "case" were not indented.
 "
 " Changes: 1.10		- Lines beginning by a single or double quote were
 "					  not indented in some cases.
@@ -77,32 +82,6 @@
 "					  should.
 "					  That will be corrected in the next version.
 " 
-" Changes: improvements with regard to the original version (0.5) by Miles Lott (whose this script was inspired):
-"			   - Commented part of code or non PHP code no longer break the
-"				 indent algorithm, the content of those parts are indented
-"				 separatly
-"			   - corrected a strange thing (a part of code was duplicated) ->
-"			   the last version couldn't work.
-"		       - Folds can be used without problem
-"		       - multilevel non bracked structures are indented (like
-"		       in C)
-"		         Exemple:
-"					if (!isset($History_lst_sel)) 
-"						if (!isset($blabla)) 
-"							if (!isset($bloum)) {
-"								$History_lst_sel=0;
-"							} else
-"							    $foo="truc";
-"						else $bla= "foo";
-"					$command_hist = TRUE;
-"
-"			   - "array( 'blabla'," lines no longer break the indent of the
-"			     following lines
-"			   - the options php_noindent_switch and php_indent_shortopentags have been removed
-"			     (couldn't find any reason why one would want to use them)
-"			   - PHP open and close tags are always set to col 1 as for the
-"			   immediate following php code
-"			   
 "  If you find a bug, please e-mail me at John.wellesz (AT) teaser (DOT) fr
 "  with an example of code that break the algorithm.
 "
@@ -146,6 +125,8 @@ let php_sync_method = 0
 "		   MUST remove CR when the fileformat is UNIX else the indentation
 "		   won't be correct...
 
+setlocal nosmartindent
+setlocal nolisp
 if &fileformat == "unix" && exists("PHP_removeCRwhenUnix") && PHP_removeCRwhenUnix
 	let myul=&ul
 	silent! %s/\r$//g
@@ -177,20 +158,23 @@ if exists("b:did_indent")
 endif
 
 let b:did_indent = 1
-setlocal nosmartindent
 
+setlocal nosmartindent
 setlocal nolisp
+setlocal nocindent
+setlocal autoindent
+
 setlocal indentexpr=GetPhpIndent()
 setlocal indentkeys=0{,0},0),:,!^F,o,O,e,*<Return>,=?>,=<?,=*/
 
 " Only define the function once.
 if exists("*GetPhpIndent")
-	finish
+	finish " XXX
 endif
 
 let s:endline= '\s*\%(//.*\|#.*\|/\*.*\*/\s*\)\=$'
 let s:PHP_startindenttag = '<?\%(.*?>\)\@!\|<script[^>]*>\%(.*<\/script>\)\@!'
-" setlocal debug=msg
+"setlocal debug=msg " XXX
 
 
 function! GetLastRealCodeLNum(startline) " {{{
@@ -212,8 +196,10 @@ function! GetLastRealCodeLNum(startline) " {{{
 			let lnum = lnum - 1
 		elseif lastline =~ '\*/\s*$' " skip multiline comments
 			call cursor(lnum, 1)
-			call search('\*/\zs', 'W')
-			let lnum = searchpair('/\*\zs', '', '\*/\zs', 'bWr', '') " find the most outside /*
+			call search('\*/\zs', 'W') " positition the cursor after the first */
+			let lnum = searchpair('/\*', '', '\*/\zs', 'bWr', '') " find the most outside /*
+			"echo 'lnum skipnonphp= ' . lnum
+			"call getchar()
 
 			let lastline = getline(lnum)
 			if lastline =~ '^\s*/\*' " if line contains nothing but comment
@@ -225,8 +211,8 @@ function! GetLastRealCodeLNum(startline) " {{{
 			
 		elseif lastline =~? '\%(//\s*\|?>.*\)\@<!<?\%(php\)\=\s*$\|^\s*<script\>' " skip non php code
 		"	call cursor(lnum, 1)
-		"	call search('<?\zs', 'W')
-		"	let lnum = searchpair('?>\zs', '', '<?\zs', 'bW', 'getline(".") =~ "<?.*?>"') " find the most outside /*
+		"	call search('<?', 'W')
+		"	let lnum = searchpair('?>', '', '<?\zs', 'bW', 'getline(".") =~ "<?.*?>"')
 
 		"	let lastline = getline(lnum)
 			while lastline !~ '\(<?.*\)\@<!?>' && lnum > 1
@@ -470,7 +456,7 @@ function! GetPhpIndent()
 			if cline =~ '\*/' " End comment tags must be indented like start comment tags
 				call cursor(v:lnum, 1)
 				call search('\*/\zs', 'W')
-				let lnum = searchpair('/\*\zs', '', '\*/\zs', 'bWr', '') " find the most outside /*
+				let lnum = searchpair('/\*', '', '\*/\zs', 'bWr', '') " find the most outside /*
 				return indent(lnum)
 			elseif cline =~? '<script\>' " a more accurate test is useless since there isn't any other possibility
 				let b:InPHPcode_and_script = 1
@@ -576,7 +562,7 @@ function! GetPhpIndent()
 	" if optimized mode is active and nor current or previous line are an 'else'
 	" or the end of a possible bracketless thing then indent the same as the previous
 	" line
-	if last_line =~ '[;}]'.endline
+	if last_line =~ '[;}]'.endline && last_line !~# '^\s*\%(default\|case\).*:' 
 		if ind==b:PHP_default_indenting
 			return b:PHP_default_indenting
 		elseif b:PHP_indentinghuge && ind==b:PHP_CurrentIndentLevel && cline !~# '^\s*\%(else\|\%(case\|default\).*:\|[})];\=\)' && last_line !~# '^\s*\%(\%(}\s*\)\=else\)' && getline(GetLastRealCodeLNum(lnum - 1))=~';'.endline
@@ -596,7 +582,7 @@ function! GetPhpIndent()
 	if UserIsEditing && cline =~ '\*/' " End comment tags must be indented like start comment tags
 		call cursor(v:lnum, 1)
 		call search('\*/\zs', 'W')
-		let lnum = searchpair('/\*\zs', '', '\*/\zs', 'bWr', '') " find the most outside /*
+		let lnum = searchpair('/\*', '', '\*/\zs', 'bWr', '') " find the most outside /*
 		return indent(lnum)
 	endif
 
@@ -730,7 +716,7 @@ function! GetPhpIndent()
 	let pline = getline(plinnum) " previous to last line
 
 	" REMOVE comments at end of line before treatment
-	" the first par of the regex removes // from the end of line when they are
+	" the first part of the regex removes // from the end of line when they are
 	" followed by a number of '"' which is a multiple of 2. The second part
 	" removes // that are not followed by any '"'
 	" Sorry for this unreadable thing...
