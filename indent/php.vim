@@ -2,9 +2,14 @@
 " Language:	PHP
 " Author:	John Wellesz <John.wellesz (AT) teaser (DOT) fr>
 " URL:		http://www.2072productions.com/vim/indent/php.vim
-" Last Change: 2005 May 17th
-" Version: 1.11
+" Last Change: 2005 May 31th
+" Version: 1.12
 "
+" Changes: 1.12		- The bug involving searchpair() and utf-8 encoding in Vim 6.3 will
+"					  not make this script to hang but you'll have to be
+"					  careful to not write '/* */' comments with other '/*'
+"					  inside the comments else the indentation won't be correct.
+"					  NOTE: This is true only if you are using utf-8 and vim 6.3.
 "
 " Changes: 1.11		- If the "case" of a "switch" wasn't alone on its line
 "					  and if the "switch" was at col 0 (or at default indenting)
@@ -127,6 +132,16 @@ let php_sync_method = 0
 
 setlocal nosmartindent
 setlocal nolisp
+
+"This will prevent a bug involving searchpair(), its 'r' flag, utf-8 and vim 6.3
+"from occurring but will forbid you to write other '/*' inside a '/* */' comment.
+if version <= 603 && &encoding == 'utf-8'
+	let s:searchpairflags = 'bW'
+else
+	let s:searchpairflags = 'bWr'
+endif
+
+
 if &fileformat == "unix" && exists("PHP_removeCRwhenUnix") && PHP_removeCRwhenUnix
 	let myul=&ul
 	silent! %s/\r$//g
@@ -197,7 +212,7 @@ function! GetLastRealCodeLNum(startline) " {{{
 		elseif lastline =~ '\*/\s*$' " skip multiline comments
 			call cursor(lnum, 1)
 			call search('\*/\zs', 'W') " positition the cursor after the first */
-			let lnum = searchpair('/\*', '', '\*/\zs', 'bWr', '') " find the most outside /*
+			let lnum = searchpair('/\*', '', '\*/\zs', s:searchpairflags, '') " find the most outside /*
 			"echo 'lnum skipnonphp= ' . lnum
 			"call getchar()
 
@@ -456,7 +471,7 @@ function! GetPhpIndent()
 			if cline =~ '\*/' " End comment tags must be indented like start comment tags
 				call cursor(v:lnum, 1)
 				call search('\*/\zs', 'W')
-				let lnum = searchpair('/\*', '', '\*/\zs', 'bWr', '') " find the most outside /*
+				let lnum = searchpair('/\*', '', '\*/\zs', s:searchpairflags, '') " find the most outside /*
 				return indent(lnum)
 			elseif cline =~? '<script\>' " a more accurate test is useless since there isn't any other possibility
 				let b:InPHPcode_and_script = 1
@@ -582,7 +597,7 @@ function! GetPhpIndent()
 	if UserIsEditing && cline =~ '\*/' " End comment tags must be indented like start comment tags
 		call cursor(v:lnum, 1)
 		call search('\*/\zs', 'W')
-		let lnum = searchpair('/\*', '', '\*/\zs', 'bWr', '') " find the most outside /*
+		let lnum = searchpair('/\*', '', '\*/\zs', s:searchpairflags, '') " find the most outside /*
 		return indent(lnum)
 	endif
 
