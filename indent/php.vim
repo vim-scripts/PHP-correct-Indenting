@@ -2,8 +2,19 @@
 " Language:	PHP
 " Author:	John Wellesz <John.wellesz (AT) teaser (DOT) fr>
 " URL:		http://www.2072productions.com/vim/indent/php.vim
-" Last Change: 2005 May 31th
-" Version: 1.12
+" Last Change: 2005 June 23rd
+" Version: 1.15
+"
+" Changes: 1.15		- Corrected some problems with the indentation of
+"					  multiline "array()" declarations.
+"
+" Changes: 1.14		- Added auto-formatting for comments (using the Vim option formatoptions=qroc).
+"					- Added the script option PHP_BracesAtCodeLevel to
+"					  indent the '{' and '}' at the same level than the
+"					  code they contain.
+" 
+" Changes: 1.13		- Some code cleaning and typo corrections (Thanks to
+"					  Emanuele Giaquinta for his patches)
 "
 " Changes: 1.12		- The bug involving searchpair() and utf-8 encoding in Vim 6.3 will
 "					  not make this script to hang but you'll have to be
@@ -97,14 +108,6 @@
 " NOTE: This script must be used with PHP syntax ON and with the php syntax
 "		script by Lutz Eymers (http://www.isp.de/data/php.vim ) that's the script bundled with Gvim.
 "
-"	This script set the option php_sync_method of PHP syntax script to 0
-"	(fromstart indenting method) in order to have an accurate syntax.
-"	If you are using very big PHP files (which is a bad idea) you will
-"	experience slowings down while editing, if your code contains only PHP
-"	code you can comment the line below.
-
-let php_sync_method = 0
-
 "
 "	In the case you have syntax errors in your script such as end of HereDoc
 "	tags not at col 1 you'll have to indent your file 2 times (This script 
@@ -129,31 +132,55 @@ let php_sync_method = 0
 "		   at end of lines (by default this option is unset), NOTE that you
 "		   MUST remove CR when the fileformat is UNIX else the indentation
 "		   won't be correct...
+"
+" Options: PHP_BracesAtCodeLevel = 1 to indent the '{' and '}' at the same
+"		   level than the code they contain.
+"		   Exemple:
+"			Instead of:
+"				if ($foo)
+"				{
+"					foo();
+"				}
+"
+"			You will write:
+"				if ($foo)
+"					{
+"					foo();
+"					}
+"
+"			NOTE: The script will be a bit slower if you use this option because
+"			some optimizations won't be available.
 
-setlocal nosmartindent
-setlocal nolisp
 
-"This will prevent a bug involving searchpair(), its 'r' flag, utf-8 and vim 6.3
-"from occurring but will forbid you to write other '/*' inside a '/* */' comment.
-if version <= 603 && &encoding == 'utf-8'
-	let s:searchpairflags = 'bW'
-else
-	let s:searchpairflags = 'bWr'
+" The 4 following lines prevent this script from being loaded several times per buffer.
+" They also prevent the load of different indent scripts for PHP at the same time.
+if exists("b:did_indent")
+	finish
 endif
+let b:did_indent = 1
+
+"	This script set the option php_sync_method of PHP syntax script to 0
+"	(fromstart indenting method) in order to have an accurate syntax.
+"	If you are using very big PHP files (which is a bad idea) you will
+"	experience slowings down while editing, if your code contains only PHP
+"	code you can comment the line below.
+
+let php_sync_method = 0
 
 
-if &fileformat == "unix" && exists("PHP_removeCRwhenUnix") && PHP_removeCRwhenUnix
-	let myul=&ul
-	silent! %s/\r$//g
-endif
-
+" Apply PHP_default_indenting option
 if exists("PHP_default_indenting")
 	let b:PHP_default_indenting = PHP_default_indenting * &sw
 else
 	let b:PHP_default_indenting = 0
 endif
-" Only load this indent file when no other was loaded. But reset those state
-" variables
+
+if exists("PHP_BracesAtCodeLevel")
+	let b:PHP_BracesAtCodeLevel = PHP_BracesAtCodeLevel
+else
+	let b:PHP_BracesAtCodeLevel = 0
+endif
+
 
 let b:PHP_lastindented = 0
 let b:PHP_indentbeforelast = 0
@@ -167,22 +194,33 @@ let b:InPHPcode_and_script = 0
 let b:InPHPcode_tofind = ""
 let b:PHP_oldchangetick = b:changedtick
 let b:UserIsTypingComment = 0
+let b:optionsset = 0
 
-if exists("b:did_indent")
-	finish
-endif
-
-let b:did_indent = 1
-
+" The 4 options belows are overriden by indentexpr so they are always off
+" anyway...
 setlocal nosmartindent
-setlocal nolisp
+setlocal noautoindent 
 setlocal nocindent
-setlocal autoindent
+setlocal nolisp " autoindent must be on, so this line is also useless...
 
 setlocal indentexpr=GetPhpIndent()
 setlocal indentkeys=0{,0},0),:,!^F,o,O,e,*<Return>,=?>,=<?,=*/
 
-" Only define the function once.
+
+"This will prevent a bug involving searchpair(), its 'r' flag, utf-8 and vim 6.3
+"from occurring but will forbid you to write other '/*' inside a '/* */' comment.
+if version <= 603 && &encoding == 'utf-8'
+	let s:searchpairflags = 'bW'
+else
+	let s:searchpairflags = 'bWr'
+endif
+
+" Clean CR when the file is in Unix format
+if &fileformat == "unix" && exists("PHP_removeCRwhenUnix") && PHP_removeCRwhenUnix
+	silent! %s/\r$//g
+endif
+
+" Only define the functions once per Vim session.
 if exists("*GetPhpIndent")
 	finish " XXX
 endif
@@ -212,7 +250,7 @@ function! GetLastRealCodeLNum(startline) " {{{
 		elseif lastline =~ '\*/\s*$' " skip multiline comments
 			call cursor(lnum, 1)
 			call search('\*/\zs', 'W') " positition the cursor after the first */
-			let lnum = searchpair('/\*', '', '\*/\zs', s:searchpairflags, '') " find the most outside /*
+			let lnum = searchpair('/\*', '', '\*/\zs', s:searchpairflags) " find the most outside /*
 			"echo 'lnum skipnonphp= ' . lnum
 			"call getchar()
 
@@ -264,7 +302,7 @@ function! Skippmatch()  " {{{
 	" times faster but you may have troubles with '{' inside comments or strings
 	" that will break the indent algorithm...
 	let synname = synIDattr(synID(line("."), col("."), 0), "name")
-	if synname == "phpParent" || synname == "javaScriptBraces" || synname == "phpComment" && b:UserIsTypingComment
+	if synname == "Delimiter" || synname == "phpParent" || synname == "javaScriptBraces" || synname == "phpComment" && b:UserIsTypingComment
 		return 0
 	else
 		return 1
@@ -360,10 +398,28 @@ endfunction
 let s:notPhpHereDoc = '\%(break\|return\|continue\|exit\);'
 let s:blockstart = '\%(\%(\%(}\s*\)\=else\%(\s\+\)\=\)\=if\>\|while\>\|for\%(each\)\=\>\|declare\|||\|&&\>\)'
 
+" make sure the options needed for this script to work correctly are set here
+" for the last time. They could have been overriden by any 'onevent'
+" associated setting file...
+let s:autorestoptions = 0
+if ! s:autorestoptions
+	au BufWinEnter,Syntax	*.php,*.php3,*.php4,*.php5	call ResetOptions()
+	let s:autorestoptions = 1
+endif
+
+function! ResetOptions()
+	if ! b:optionsset
+		setlocal formatoptions=qroc
+		let b:optionsset = 1
+	endif
+endfunc
+
 function! GetPhpIndent()
 	"##############################################
 	"########### MAIN INDENT FUNCTION #############
 	"##############################################
+
+
 
 	" This detect if the user is currently typing text between each call
 	let UserIsEditing=0
@@ -471,7 +527,7 @@ function! GetPhpIndent()
 			if cline =~ '\*/' " End comment tags must be indented like start comment tags
 				call cursor(v:lnum, 1)
 				call search('\*/\zs', 'W')
-				let lnum = searchpair('/\*', '', '\*/\zs', s:searchpairflags, '') " find the most outside /*
+				let lnum = searchpair('/\*', '', '\*/\zs', s:searchpairflags) " find the most outside /*
 				return indent(lnum)
 			elseif cline =~? '<script\>' " a more accurate test is useless since there isn't any other possibility
 				let b:InPHPcode_and_script = 1
@@ -597,7 +653,7 @@ function! GetPhpIndent()
 	if UserIsEditing && cline =~ '\*/' " End comment tags must be indented like start comment tags
 		call cursor(v:lnum, 1)
 		call search('\*/\zs', 'W')
-		let lnum = searchpair('/\*', '', '\*/\zs', s:searchpairflags, '') " find the most outside /*
+		let lnum = searchpair('/\*', '', '\*/\zs', s:searchpairflags) " find the most outside /*
 		return indent(lnum)
 	endif
 
@@ -741,18 +797,35 @@ function! GetPhpIndent()
 	if !LastLineClosed " the last line isn't a .*; or a }$ line
 		" if the last line is a [{(]$ or a multiline function call (or array
 		" declaration) with already one parameter on the opening ( line
+		
 		if last_line =~# '[{(]'.endline || last_line =~? '\h\w*\s*(.*,$' && pline !~ '[,(]'.endline
-			let ind = ind + &sw
-			if cline !~# '^\s*\%(default\|case\).*:' " case and default are not indented inside blocks
+			if !b:PHP_BracesAtCodeLevel || last_line !~# '^\s*{' " XXX mod {
+				let ind = ind + &sw
+			endif
+			if b:PHP_BracesAtCodeLevel || cline !~# '^\s*\%(default\|case\).*:' " XXX mod (2) {
+			   	" case and default are not indented inside blocks
 				let b:PHP_CurrentIndentLevel = ind
 				return ind
 			endif
 		endif
+
+		if  b:PHP_BracesAtCodeLevel && cline =~# '^\s*{' " XXX mod {
+			let ind = ind + &sw
+		endif
+		
 	endif
 
-	" If the current line closes a multiline function call or array def
+	" If the current line closes a multiline function call or array def XXX
 	if cline =~  '^\s*);\='
 		let ind = ind - &sw
+	elseif last_line =~ '\S\+\s*),'.endline
+		call cursor(lnum, 1)
+		call search('),'.endline, 'W')
+		
+		if searchpair('(', '', ')', 'bW', 'Skippmatch()') != lnum
+			let ind = ind - &sw
+		endif
+
 	elseif cline =~# '^\s*\%(default\|case\).*:'
 		let ind = ind - &sw
 	endif
