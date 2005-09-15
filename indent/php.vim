@@ -2,8 +2,26 @@
 " Language:	PHP
 " Author:	John Wellesz <John.wellesz (AT) teaser (DOT) fr>
 " URL:		http://www.2072productions.com/vim/indent/php.vim
-" Last Change: 2005 June 30th
-" Version: 1.17
+" Last Change: 2005 September 14th
+" Version: 1.18
+"
+"
+" Changes: 1.18		- No more problem with Vim 6.3 and UTF-8.
+"					- Opening braces "{" are always indented according to their block starter.
+"
+"				Instead of:
+"				
+"					if( $test
+"						&& $test2 )
+"						{
+"                       }
+"
+"				You have:
+"
+"					if( $test
+"						&& $test2 )
+"					{
+"                   }				
 "
 "
 " Changes: 1.17		- Now following parts of split lines are indented:
@@ -230,13 +248,8 @@ setlocal indentexpr=GetPhpIndent()
 setlocal indentkeys=0{,0},0),:,!^F,o,O,e,*<Return>,=?>,=<?,=*/
 
 
-"This will prevent a bug involving searchpair(), its 'r' flag, utf-8 and vim 6.3
-"from occurring but will forbid you to write other '/*' inside a '/* */' comment.
-if version <= 603 && &encoding == 'utf-8'
-	let s:searchpairflags = 'bW'
-else
-	let s:searchpairflags = 'bWr'
-endif
+
+let s:searchpairflags = 'bWr'
 
 " Clean CR when the file is in Unix format
 if &fileformat == "unix" && exists("PHP_removeCRwhenUnix") && PHP_removeCRwhenUnix
@@ -272,8 +285,10 @@ function! GetLastRealCodeLNum(startline) " {{{
 			let lnum = lnum - 1
 		elseif lastline =~ '\*/\s*$' " skip multiline comments
 			call cursor(lnum, 1)
-			call search('\*/\zs', 'W') " positition the cursor after the first */
-			let lnum = searchpair('/\*', '', '\*/\zs', s:searchpairflags) " find the most outside /*
+			if lastline !~ '^\*/'
+				call search('\*/', 'W') " positition the cursor on the first */
+			endif
+			let lnum = searchpair('/\*', '', '\*/', s:searchpairflags) " find the most outside /*
 			"echo 'lnum skipnonphp= ' . lnum
 			"call getchar()
 
@@ -425,7 +440,7 @@ endfunction
 " }}}
 
 let s:notPhpHereDoc = '\%(break\|return\|continue\|exit\);'
-let s:blockstart = '\%(\%(\%(}\s*\)\=else\%(\s\+\)\=\)\=if\>\|while\>\|switch\>\|for\%(each\)\=\>\|declare\>\|[|&]\)'
+let s:blockstart = '\%(\%(\%(}\s*\)\=else\%(\s\+\)\=\)\=if\>\|else\>\|while\>\|switch\>\|for\%(each\)\=\>\|declare\>\|[|&]\)'
 
 " make sure the options needed for this script to work correctly are set here
 " for the last time. They could have been overriden by any 'onevent'
@@ -554,8 +569,10 @@ function! GetPhpIndent()
 			let b:UserIsTypingComment = 0
 			if cline =~ '\*/' " End comment tags must be indented like start comment tags
 				call cursor(v:lnum, 1)
-				call search('\*/\zs', 'W')
-				let lnum = searchpair('/\*', '', '\*/\zs', s:searchpairflags) " find the most outside /*
+				if cline !~ '^\*/'
+					call search('\*/', 'W')
+				endif
+				let lnum = searchpair('/\*', '', '\*/', s:searchpairflags) " find the most outside /*
 
 				let b:PHP_CurrentIndentLevel = b:PHP_default_indenting
 				let b:PHP_LastIndentedWasComment = 0 " prevent a problem if multiline /**/ comment are surounded by
@@ -594,7 +611,7 @@ function! GetPhpIndent()
 
 			" Skip /* \n+ */ comments execept when the user is currently
 			" writting them
-		elseif !UserIsEditing && cline =~ '^\s*/\*\%(.*\*/\)\@!' && getline(v:lnum + 1) !~ '^\s*\*' " XXX indent comments
+		elseif !UserIsEditing && cline =~ '^\s*/\*\%(.*\*/\)\@!' && getline(v:lnum + 1) !~ '^\s*\*'
 			let b:InPHPcode = 0
 			let b:InPHPcode_tofind = '\*/'
 
@@ -699,8 +716,12 @@ function! GetPhpIndent()
 	" Check for end of comment and indent it like its beginning
 	if cline =~ '^\s*\*/' " End comment tags must be indented like start comment tags
 		call cursor(v:lnum, 1)
-		call search('\*/\zs', 'W')
-		let lnum = searchpair('/\*', '', '\*/\zs', s:searchpairflags) " find the most outside /*
+		if cline !~ '^\*/'
+			call search('\*/', 'W')
+		endif
+		let lnum = searchpair('/\*', '', '\*/', s:searchpairflags) " find the most outside /*
+		"echo 'Searchpair returned: ' . lnum
+		"call getchar()
 
 		let b:PHP_CurrentIndentLevel = b:PHP_default_indenting
 
@@ -728,7 +749,6 @@ function! GetPhpIndent()
 
 	let LastLineClosed = 0 " used to prevent redundant tests in the last part of the script
 
-	"let terminated = '\%(;\%(\s*?>\)\=\|<<<\a\w*\)'.endline.'\|}\%(.*{'. endline.'\)\@!'
 	let terminated = '\%(;\%(\s*?>\)\=\|<<<\a\w*\|}\)'.endline
 	" What is a terminated line?
 	" - a line terminated by a ";" optionaly followed by a "?>"
@@ -747,6 +767,30 @@ function! GetPhpIndent()
 	if ind != b:PHP_default_indenting && cline =~# '^\s*else\%(if\)\=\>'
 		let b:PHP_CurrentIndentLevel = b:PHP_default_indenting " prevent optimized to work at next call
 		return indent(FindTheIfOfAnElse(v:lnum, 1))
+	elseif cline =~ '^\s*{'
+		let previous_line = last_line
+		let last_line_num = lnum
+		
+		while last_line_num > 1
+			
+			if previous_line =~ '^\s*\%(' . s:blockstart . '\|\%([a-zA-Z]\s*\)*function\)' && previous_line !~ '^\s*[|&]'
+				"echo '{ detected and aligned to ' . last_line_num . '  ('.previous_line.')'
+				"call getchar()
+
+				let ind = indent(last_line_num)
+
+				" If the PHP_BracesAtCodeLevel is set then indent the '{'
+				if  b:PHP_BracesAtCodeLevel " XXX mod {
+					let ind = ind + &sw
+				endif
+		
+				return ind 
+			endif
+			
+			let last_line_num = last_line_num - 1
+			let previous_line = getline(last_line_num)
+		endwhile
+
 	elseif last_line =~# unstated && cline !~ '^\s*{\|^\s*);\='.endline
 		let ind = ind + &sw
 		return ind
@@ -923,10 +967,6 @@ function! GetPhpIndent()
 			
 			let ind = ind + &sw
 
-		endif
-		" If the PHP_BracesAtCodeLevel is set then indent the '{'
-		if  b:PHP_BracesAtCodeLevel && cline =~# '^\s*{' " XXX mod {
-			let ind = ind + &sw
 		endif
 
 	elseif last_line =~# defaultORcase
