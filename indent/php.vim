@@ -2,11 +2,14 @@
 " Language:	PHP
 " Author:	John Wellesz <John.wellesz (AT) teaser (DOT) fr>
 " URL:		http://www.2072productions.com/vim/indent/php.vim
-" Last Change: 2005 September 14th
-" Version: 1.18
+" Last Change: 2005 September 17th
+" Version: 1.181
 "
 "
-" Changes: 1.18		- No more problem with Vim 6.3 and UTF-8.
+" Changes: 1.181    - I Forgot to register 'class' as a block starter so the '{'
+"					  after a 'class' could be wrongly indented...
+"
+" Changes: 1.18		- No more problems with Vim 6.3 and UTF-8.
 "					- Opening braces "{" are always indented according to their block starter.
 "
 "				Instead of:
@@ -440,7 +443,7 @@ endfunction
 " }}}
 
 let s:notPhpHereDoc = '\%(break\|return\|continue\|exit\);'
-let s:blockstart = '\%(\%(\%(}\s*\)\=else\%(\s\+\)\=\)\=if\>\|else\>\|while\>\|switch\>\|for\%(each\)\=\>\|declare\>\|[|&]\)'
+let s:blockstart = '\%(\%(\%(}\s*\)\=else\%(\s\+\)\=\)\=if\>\|else\>\|while\>\|switch\>\|for\%(each\)\=\>\|declare\>\|class\>\|[|&]\)'
 
 " make sure the options needed for this script to work correctly are set here
 " for the last time. They could have been overriden by any 'onevent'
