@@ -2,8 +2,22 @@
 " Language:	PHP
 " Author:	John Wellesz <John.wellesz (AT) teaser (DOT) fr>
 " URL:		http://www.2072productions.com/vim/indent/php.vim
-" Last Change: 2005 Nobember 12th
-" Version: 1.19
+" Last Change: 2005 Nobember 21st
+" Version: 1.20
+"
+" Changes: 1.20		- Line beginning by a single or double quote followed
+"			  by a space would cause problems... this was related
+"			  to the bug correction of version 1.10 - Thanks to
+"			  David F. for finding this (he was lucky).
+"			- Changed the way this script set the 'formatoptions'
+"			  setting, now it uses '-=' and '+='
+"			- New option: PHP_autoformatcomment (defaults to 1),
+"			  if set to 0 the 'formatoptions' setting will not be
+"			  altered.
+"			- When PHP_autoformatcomment is not 0, the 'comments'
+"			  setting is set to the type of comments that PHP
+"			  supports.
+"
 "
 " Changes: 1.19		- Indentation of '*/' delimiter of '/**/' won't be broken by
 "			  strings or '//' comments containing the "/*" character sequence.
@@ -176,6 +190,10 @@
 " or simply 'let' the option PHP_removeCRwhenUnix to 1 and the script will
 " silently remove them when VIM load this script (at each bufread).
 
+
+" Options: PHP_autoformatcomment = 0 to not enable autoformating of comment by
+"		    default, if set to 0, this script will let the 'formatoptions' setting intact.
+" 
 " Options: PHP_default_indenting = # of sw (default is 0), # of sw will be
 "		   added to the indent of each line of PHP code.
 "
@@ -236,6 +254,11 @@ else
     let b:PHP_BracesAtCodeLevel = 0
 endif
 
+if exists("PHP_autoformatcomment")
+    let b:PHP_autoformatcomment = PHP_autoformatcomment
+else
+    let b:PHP_autoformatcomment = 1
+endif
 
 let b:PHP_lastindented = 0
 let b:PHP_indentbeforelast = 0
@@ -274,12 +297,12 @@ endif
 
 " Only define the functions once per Vim session.
 if exists("*GetPhpIndent")
-    finish " XXX
+   finish " XXX
 endif
 
 let s:endline= '\s*\%(//.*\|#.*\|/\*.*\*/\s*\)\=$'
 let s:PHP_startindenttag = '<?\%(.*?>\)\@!\|<script[^>]*>\%(.*<\/script>\)\@!'
-"setlocal debug=msg " XXX
+" setlocal debug=msg " XXX
 
 
 function! GetLastRealCodeLNum(startline) " {{{
@@ -449,7 +472,7 @@ function! IslinePHP (lnum, tofind) " {{{
     if a:tofind==""
 	" This correct the issue where lines beginning by a 
 	" single or double quote were not indented in some cases.
-	let tofind = "^\\s*[\"']*\s*\\zs\\S"
+	let tofind = "^\\s*[\"']*\\s*\\zs\\S"
     else
 	let tofind = a:tofind
     endif
@@ -485,7 +508,26 @@ endif
 
 function! ResetOptions()
     if ! b:optionsset
-	setlocal formatoptions=qrowcb
+	if b:PHP_autoformatcomment
+
+	    " Set the comment setting to something correct for PHP
+	    setlocal comments=s1:/*,mb:*,ex:*/,://,:#
+	    
+	    " disable Auto-wrap of text
+	    setlocal formatoptions-=t
+	    " Allow formatting of comments with "gq"
+	    setlocal formatoptions+=q
+	    " Insert comment leader after hitting <Enter>
+	    setlocal formatoptions+=r
+	    " Insert comment leader after hitting o or O in normal mode
+	    setlocal formatoptions+=o
+	    " Uses trailing white spaces to detect paragraphs
+	    setlocal formatoptions+=w
+	    " Autowrap comments using textwidth
+	    setlocal formatoptions+=c
+	    " Do not wrap if you modify a line after textwidth
+	    setlocal formatoptions+=b
+	endif
 	let b:optionsset = 1
     endif
 endfunc
