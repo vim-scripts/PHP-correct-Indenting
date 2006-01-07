@@ -2,13 +2,18 @@
 " Language:	PHP
 " Author:	John Wellesz <John.wellesz (AT) teaser (DOT) fr>
 " URL:		http://www.2072productions.com/vim/indent/php.vim
-" Last Change: 2005 Nobember 21st
-" Version: 1.20
+" Last Change:  2006 January 8th
+" Version:	1.21
+"
+"
+" Changes: 1.21		- 'try' and 'catch' were not registered as block starters so the '{'
+"			  after a 'try' or 'catch' could be wrongly indented...
+"			  (thanks to Gert Muller for finding this issue)
 "
 " Changes: 1.20		- Line beginning by a single or double quote followed
 "			  by a space would cause problems... this was related
 "			  to the bug correction of version 1.10 - Thanks to
-"			  David F. for finding this (he was lucky).
+"			  David Fishburn for finding this (he was lucky).
 "			- Changed the way this script set the 'formatoptions'
 "			  setting, now it uses '-=' and '+='
 "			- New option: PHP_autoformatcomment (defaults to 1),
@@ -18,15 +23,14 @@
 "			  setting is set to the type of comments that PHP
 "			  supports.
 "
-"
 " Changes: 1.19		- Indentation of '*/' delimiter of '/**/' won't be broken by
 "			  strings or '//' comments containing the "/*" character sequence.
 "
 " Changes: 1.182	- I Forgot to register 'interface' and 'abstract' as block starters so the '{'
-"					  after them could be wrongly indented...
+"			  after them could be wrongly indented...
 "
 " Changes: 1.181	- I Forgot to register 'class' as a block starter so the '{'
-"					  after a 'class' could be wrongly indented...
+"			  after a 'class' could be wrongly indented...
 "
 " Changes: 1.18		- No more problems with Vim 6.3 and UTF-8.
 "			- Opening braces "{" are always indented according to their block starter.
@@ -495,7 +499,7 @@ function! IslinePHP (lnum, tofind) " {{{
 endfunction " }}}
 
 let s:notPhpHereDoc = '\%(break\|return\|continue\|exit\);'
-let s:blockstart = '\%(\%(\%(}\s*\)\=else\%(\s\+\)\=\)\=if\>\|else\>\|while\>\|switch\>\|for\%(each\)\=\>\|declare\>\|class\>\|interface\>\|abstract\>\|[|&]\)'
+let s:blockstart = '\%(\%(\%(}\s*\)\=else\%(\s\+\)\=\)\=if\>\|else\>\|while\>\|switch\>\|for\%(each\)\=\>\|declare\>\|class\>\|interface\>\|abstract\>\|try\>\|catch\>\|[|&]\)'
 
 " make sure the options needed for this script to work correctly are set here
 " for the last time. They could have been overriden by any 'onevent'
