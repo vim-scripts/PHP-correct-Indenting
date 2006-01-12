@@ -2,8 +2,15 @@
 " Language:	PHP
 " Author:	John Wellesz <John.wellesz (AT) teaser (DOT) fr>
 " URL:		http://www.2072productions.com/vim/indent/php.vim
-" Last Change:  2006 January 8th
-" Version:	1.21
+" Last Change:  2006 January 12th
+" Newletter:    http://listes.firstream.net/wws/info/php-indent-for-vim
+" Version:	1.22
+"
+" Changes: 1.22		- PHPDoc comments are now indented according to the
+"			  surrounding code.
+"			- This is also true for '/* */' multi-line comments
+"			  when the second line begins by a '*'.
+"			- Single line '/* */' comments are also indented.
 "
 "
 " Changes: 1.21		- 'try' and 'catch' were not registered as block starters so the '{'
@@ -301,7 +308,7 @@ endif
 
 " Only define the functions once per Vim session.
 if exists("*GetPhpIndent")
-   finish " XXX
+    finish " XXX
 endif
 
 let s:endline= '\s*\%(//.*\|#.*\|/\*.*\*/\s*\)\=$'
@@ -695,7 +702,7 @@ function! GetPhpIndent()
 	    let b:InPHPcode_tofind = substitute( last_line, '^.*<<<\(\a\w*\)\c', '^\\s*\1;$', '')
 
 	    " Skip /* \n+ */ comments execept when the user is currently
-	    " writting them
+	    " writting them or when it is a comment (ie: not a code put in comment)
 	elseif !UserIsEditing && cline =~ '^\s*/\*\%(.*\*/\)\@!' && getline(v:lnum + 1) !~ '^\s*\*'
 	    let b:InPHPcode = 0
 	    let b:InPHPcode_tofind = '\*/'
@@ -743,10 +750,12 @@ function! GetPhpIndent()
 	endif
     endif
 
-    if !b:PHP_InsideMultilineComment && cline =~ '^\s*/\*'
+    if !b:PHP_InsideMultilineComment && cline =~ '^\s*/\*' && cline !~ '\*/\s*$'
 	" if cline == '/*'
+	if getline(v:lnum + 1) !~ '^\s*\*'
+	    return -1
+	endif
 	let b:PHP_InsideMultilineComment = 1
-	return -1
     endif " }}}
 
     " Some tags are always indented to col 1
