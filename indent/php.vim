@@ -2,9 +2,14 @@
 " Language:	PHP
 " Author:	John Wellesz <John.wellesz (AT) teaser (DOT) fr>
 " URL:		http://www.2072productions.com/vim/indent/php.vim
-" Last Change:  2006 January 12th
-" Newletter:    http://listes.firstream.net/wws/info/php-indent-for-vim
-" Version:	1.22
+" Last Change:  2006 January 15th
+" Newsletter:   http://www.2072productions.com/?to=php-indent-for-vim-newsletter.php
+" Version:	1.23
+" 
+" Changes: 1.23		- <script> html tags are now correctly indented the same
+"			  way their content is.
+"			- <?.*?> (on a single line) php declarations are now
+"			  always considered as non-php code and let untouched.
 "
 " Changes: 1.22		- PHPDoc comments are now indented according to the
 "			  surrounding code.
@@ -175,7 +180,7 @@
 "		      That will be corrected in the next version.
 " 
 "  If you find a bug, please e-mail me at John.wellesz (AT) teaser (DOT) fr
-"  with an example of code that break the algorithm.
+"  with an example of code that breaks the algorithm.
 "
 "
 "	Thanks a lot for using this script.
@@ -318,7 +323,14 @@ let s:PHP_startindenttag = '<?\%(.*?>\)\@!\|<script[^>]*>\%(.*<\/script>\)\@!'
 
 function! GetLastRealCodeLNum(startline) " {{{
     "Inspired from the function SkipJavaBlanksAndComments by Toby Allsopp for indent/java.vim 
+    
     let lnum = a:startline
+    
+    " Used to indent <script.*> html tag correctly
+    if b:GetLastRealCodeLNum_ADD && b:GetLastRealCodeLNum_ADD == lnum + 1
+	let lnum = b:GetLastRealCodeLNum_ADD
+    endif
+    
     let old_lnum = lnum
 
     while lnum > 1
@@ -548,6 +560,9 @@ function! GetPhpIndent()
     "########### MAIN INDENT FUNCTION #############
     "##############################################
 
+    " variable added on 2005-01-15 to make <script> tags really indent correctly (not pretty at all :-/ )
+    let b:GetLastRealCodeLNum_ADD = 0
+
     " This detect if the user is currently typing text between each call
     let UserIsEditing=0
     if	b:PHP_oldchangetick != b:changedtick
@@ -604,8 +619,11 @@ function! GetPhpIndent()
     if !b:InPHPcode_checked " {{{ One time check
 	let b:InPHPcode_checked = 1
 
-	" the line could be blank (if the user presses 'return')
-	let synname = IslinePHP (prevnonblank(v:lnum), "")
+	let synname = ""
+	if cline !~ '<?.*?>'
+	    " the line could be blank (if the user presses 'return')
+	    let synname = IslinePHP (prevnonblank(v:lnum), "")
+	endif
 
 	if synname!=""
 	    if synname != "phpHereDoc"
@@ -680,6 +698,10 @@ function! GetPhpIndent()
 	    elseif cline =~? '<script\>'
 		" a more accurate test is useless since there isn't any other possibility
 		let b:InPHPcode_and_script = 1
+		" this will make GetLastRealCodeLNum to add one line to its
+		" given argument so it can detect the <script> easily (that is
+		" simpler/quicker than using a regex...)
+		let b:GetLastRealCodeLNum_ADD = v:lnum
 	    endif
 	endif
     endif
@@ -712,14 +734,16 @@ function! GetPhpIndent()
 	elseif cline =~? '^\s*</script>'
 	    let b:InPHPcode = 0
 	    let b:InPHPcode_tofind = s:PHP_startindenttag
+	    " Note that b:InPHPcode_and_script is still true so that the
+	    " </script> can be indented correctly
 	endif
     endif " }}}
 
+    
     " Non PHP code is let as it is
     if !b:InPHPcode && !b:InPHPcode_and_script
 	return -1
     endif
-
     " Align correctly multi // or # lines
 
     " Indent successive // or # comment the same way the first is {{{
@@ -782,6 +806,7 @@ function! GetPhpIndent()
 
     " Find an executable php code line above the current line.
     let lnum = GetLastRealCodeLNum(v:lnum - 1)
+
     " last line
     let last_line = getline(lnum)
     " by default
