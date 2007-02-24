@@ -2,14 +2,22 @@
 " Language:	PHP
 " Author:	John Wellesz <John.wellesz (AT) teaser (DOT) fr>
 " URL:		http://www.2072productions.com/vim/indent/php.vim
-" Last Change:  2006 January 15th
+" Last Change:  2007 February 25th
 " Newsletter:   http://www.2072productions.com/?to=php-indent-for-vim-newsletter.php
-" Version:	1.23
+" Version:	1.24
+"
+"
+" Changes: 1.24		- Added compatibility with the latest version of
+"			  php.vim syntax file by Peter Hodge (http://www.vim.org/scripts/script.php?script_id=1571)
+"			  This fixes wrong indentation and ultra-slow indenting
+"			  on large php files...
+"			- fixed spelling in comments
+"
 " 
 " Changes: 1.23		- <script> html tags are now correctly indented the same
 "			  way their content is.
-"			- <?.*?> (on a single line) php declarations are now
-"			  always considered as non-php code and let untouched.
+"			- <?.*?> (on a single line) PHP declarations are now
+"			  always considered as non-PHP code and let untouched.
 "
 " Changes: 1.22		- PHPDoc comments are now indented according to the
 "			  surrounding code.
@@ -172,9 +180,9 @@
 "		      cause some Vim messages at loading if other script were
 "		      bugged.
 "
-" Changes: 1.01:    - Some little bug corrections reguarding automatic optimized
+" Changes: 1.01:    - Some little bug corrections regarding automatic optimized
 "		      mode that missed some tests and could break the indenting.
-"		    - There is also a problem with complex non bracked structures, when several
+"		    - There is also a problem with complex non bracketed structures, when several
 "		      else are following each other, the algorithm do not indent the way it
 "		      should.
 "		      That will be corrected in the next version.
@@ -291,7 +299,7 @@ let b:PHP_oldchangetick = b:changedtick
 let b:UserIsTypingComment = 0
 let b:optionsset = 0
 
-" The 4 options belows are overriden by indentexpr so they are always off
+" The 4 options belows are overridden by indentexpr so they are always off
 " anyway...
 setlocal nosmartindent
 setlocal noautoindent 
@@ -318,7 +326,7 @@ endif
 
 let s:endline= '\s*\%(//.*\|#.*\|/\*.*\*/\s*\)\=$'
 let s:PHP_startindenttag = '<?\%(.*?>\)\@!\|<script[^>]*>\%(.*<\/script>\)\@!'
-" setlocal debug=msg " XXX
+"setlocal debug=msg " XXX
 
 
 function! GetLastRealCodeLNum(startline) " {{{
@@ -351,7 +359,7 @@ function! GetLastRealCodeLNum(startline) " {{{
 	    call cursor(lnum, 1)
 	    if lastline !~ '^\*/'
 		call search('\*/', 'W')
-		" positition the cursor on the first */
+		" position the cursor on the first */
 	    endif
 	    let lnum = searchpair('/\*', '', '\*/', s:searchpairflags, 'Skippmatch2()')
 	    " find the most outside /*
@@ -404,6 +412,11 @@ function! GetLastRealCodeLNum(startline) " {{{
     if b:InPHPcode_and_script && !b:InPHPcode
 	let b:InPHPcode_and_script = 0
     endif
+
+    "echom lnum
+    "call getchar()
+
+
     return lnum
 endfunction " }}}
 
@@ -423,9 +436,11 @@ function! Skippmatch()  " {{{
     " times faster but you may have troubles with '{' inside comments or strings
     " that will break the indent algorithm...
     let synname = synIDattr(synID(line("."), col("."), 0), "name")
-    if synname == "Delimiter" || synname == "phpParent" || synname == "javaScriptBraces" || synname == "phpComment" && b:UserIsTypingComment
+    if synname == "Delimiter" || synname == "phpRegionDelimiter" || synname =~# "^phpParent" || synname == "phpArrayParens" || synname =~# "^phpBlock" || synname == "javaScriptBraces" || synname == "phpComment" && b:UserIsTypingComment
 	return 0
     else
+"	echom synname
+"	call getchar()
 	return 1
     endif
 endfun " }}}
@@ -500,7 +515,7 @@ function! IslinePHP (lnum, tofind) " {{{
 	let tofind = a:tofind
     endif
 
-    " ignorecase
+    " ignore case
     let tofind = tofind . '\c'
 
     "find the first non blank char in the current line
@@ -509,6 +524,7 @@ function! IslinePHP (lnum, tofind) " {{{
     " ask to syntax what is its name
     let synname = synIDattr(synID(a:lnum, coltotest, 0), "name")
 
+"	echom synname
     " if matchstr(synname, '^...') == "php" || synname=="Delimiter" || synname =~? '^javaScript'
     if synname =~ '^php' || synname=="Delimiter" || synname =~? '^javaScript'
 	return synname
@@ -521,7 +537,7 @@ let s:notPhpHereDoc = '\%(break\|return\|continue\|exit\);'
 let s:blockstart = '\%(\%(\%(}\s*\)\=else\%(\s\+\)\=\)\=if\>\|else\>\|while\>\|switch\>\|for\%(each\)\=\>\|declare\>\|class\>\|interface\>\|abstract\>\|try\>\|catch\>\|[|&]\)'
 
 " make sure the options needed for this script to work correctly are set here
-" for the last time. They could have been overriden by any 'onevent'
+" for the last time. They could have been overridden by any 'onevent'
 " associated setting file...
 let s:autorestoptions = 0
 if ! s:autorestoptions
@@ -626,7 +642,7 @@ function! GetPhpIndent()
 	endif
 
 	if synname!=""
-	    if synname != "phpHereDoc"
+	    if synname != "phpHereDoc" && synname != "phpHereDocDelimiter"
 		let b:InPHPcode = 1
 		let b:InPHPcode_tofind = ""
 
@@ -685,7 +701,7 @@ function! GetPhpIndent()
 
 		let b:PHP_CurrentIndentLevel = b:PHP_default_indenting
 
-		" prevent a problem if multiline /**/ comment are surounded by
+		" prevent a problem if multiline /**/ comment are surrounded by
 		" other types of comments
 		let b:PHP_LastIndentedWasComment = 0
 
@@ -710,7 +726,7 @@ function! GetPhpIndent()
     if b:InPHPcode
 
 	" Was last line containing a PHP end tag ?
-	if !b:InPHPcode_and_script && last_line =~ '\%(<?.*\)\@<!?>\%(.*<?\)\@!' && IslinePHP(lnum, '?>')=="Delimiter"
+	if !b:InPHPcode_and_script && last_line =~ '\%(<?.*\)\@<!?>\%(.*<?\)\@!' && IslinePHP(lnum, '?>')=~"Delimiter"
 	    if cline !~? s:PHP_startindenttag
 		let b:InPHPcode = 0
 		let b:InPHPcode_tofind = s:PHP_startindenttag
@@ -723,8 +739,8 @@ function! GetPhpIndent()
 	    let b:InPHPcode = 0
 	    let b:InPHPcode_tofind = substitute( last_line, '^.*<<<\(\a\w*\)\c', '^\\s*\1;$', '')
 
-	    " Skip /* \n+ */ comments execept when the user is currently
-	    " writting them or when it is a comment (ie: not a code put in comment)
+	    " Skip /* \n+ */ comments except when the user is currently
+	    " writing them or when it is a comment (ie: not a code put in comment)
 	elseif !UserIsEditing && cline =~ '^\s*/\*\%(.*\*/\)\@!' && getline(v:lnum + 1) !~ '^\s*\*'
 	    let b:InPHPcode = 0
 	    let b:InPHPcode_tofind = '\*/'
@@ -871,7 +887,7 @@ function! GetPhpIndent()
 
     let terminated = '\%(;\%(\s*?>\)\=\|<<<\a\w*\|}\)'.endline
     " What is a terminated line?
-    " - a line terminated by a ";" optionaly followed by a "?>"
+    " - a line terminated by a ";" optionally followed by a "?>"
     " - a HEREDOC starter line (the content of such block is never seen by this script)
     " - a "}" not followed by a "{"
 
@@ -942,7 +958,7 @@ function! GetPhpIndent()
 	let LastLineClosed = 1
 	" The idea here is to check if the current line is after a non '{}'
 	" structure so we can indent it like the top of that structure.
-	" The top of that structure is caracterized by a if (ff)$ style line
+	" The top of that structure is characterized by a if (ff)$ style line
 	" preceded by a stated line. If there is no such structure then we
 	" just have to find two 'normal' lines following each other with the
 	" same indentation and with the first of these two lines terminated by
@@ -951,7 +967,7 @@ function! GetPhpIndent()
 	while 1
 	    " let's skip '{}' blocks
 	    if previous_line =~ '^\s*}'
-		" find the openning '{'
+		" find the opening '{'
 		let last_line_num = FindOpenBracket(last_line_num)
 
 		" if the '{' is alone on the line get the line before
@@ -1019,7 +1035,7 @@ function! GetPhpIndent()
 	endwhile
 
 	if indent(last_match) != ind
-	    " let's use the indent of the last line matched by the alhorithm above
+	    " let's use the indent of the last line matched by the algorithm above
 	    let ind = indent(last_match)
 	    " line added in version 1.02 to prevent optimized mode
 	    " from acting in some special cases
@@ -1072,7 +1088,7 @@ function! GetPhpIndent()
 	    endif
 
 	    " If the last line isn't empty and ends with a '),' then check if the
-	    " ')' was oppened on the same line, if not it means it closes a
+	    " ')' was opened on the same line, if not it means it closes a
 	    " multiline '(.*)' thing and that the current line need to be
 	    " de-indented one time.
 	elseif last_line =~ '\S\+\s*),'.endline
