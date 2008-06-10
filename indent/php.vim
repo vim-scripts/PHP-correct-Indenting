@@ -2,18 +2,40 @@
 " Language:	PHP
 " Author:	John Wellesz <John.wellesz (AT) teaser (DOT) fr>
 " URL:		http://www.2072productions.com/vim/indent/php.vim
-" Last Change:  2007 February 25th
+" Last Change:  2008 June 7th
 " Newsletter:   http://www.2072productions.com/?to=php-indent-for-vim-newsletter.php
-" Version:	1.24
+" Version:	1.28
+"
+"
+" Changes: 1.28		- End HEREDOC delimiters were not considered as such
+"			  if they were not followed by a ';'.
+"			- Added support for NOWDOC tags ($foo = <<<'bar')
+"
+"
+" Changes: 1.27		- if a "case" was preceded by another "case" on the
+"			  previous line, the second "case" was indented incorrectly.
+"
+" Changes: 1.26		- '/*' character sequences found on a line
+"			  starting by a '#' were not dismissed by the indenting algorithm
+"			  and could cause indentation problem in some cases.
+"
+"
+" Changes: 1.25		- Fix some indentation errors on multi line conditions
+"			  and multi line statements.
+"			- Fix when array indenting is broken and a closing
+"			');' is placed at the start of the line, following
+"			lines will be indented correctly.
+"			- New option: PHP_vintage_case_default_indent (default off)
+"			- Minor fixes and optimizations.
 "
 "
 " Changes: 1.24		- Added compatibility with the latest version of
 "			  php.vim syntax file by Peter Hodge (http://www.vim.org/scripts/script.php?script_id=1571)
 "			  This fixes wrong indentation and ultra-slow indenting
 "			  on large php files...
-"			- fixed spelling in comments
+"			- Fixed spelling in comments.
 "
-" 
+"
 " Changes: 1.23		- <script> html tags are now correctly indented the same
 "			  way their content is.
 "			- <?.*?> (on a single line) PHP declarations are now
@@ -56,7 +78,7 @@
 "			- Opening braces "{" are always indented according to their block starter.
 "
 "				Instead of:
-"				
+"
 "					if( $test
 "					    && $test2 )
 "					    {
@@ -67,13 +89,13 @@
 "					if( $test
 "					    && $test2 )
 "					{
-"					}				
+"					}
 "
 "
 " Changes: 1.17		- Now following parts of split lines are indented:
-" 
+"
 "				Instead of:
-"				
+"
 "					$foo=
 "					"foo"
 "					."foo";
@@ -83,7 +105,7 @@
 "					$foo=
 "					    "foo"
 "					    ."foo";
-"		
+"
 "			- If a "case : break;" was declared on a single line, the
 "			  following "case" was not indented correctly.
 "			- If a </script> html tag was preceded by a "?>" it wasn't indented.
@@ -101,7 +123,7 @@
 "			- Added the script option PHP_BracesAtCodeLevel to
 "			  indent the '{' and '}' at the same level than the
 "			  code they contain.
-" 
+"
 " Changes: 1.13		- Some code cleaning and typo corrections (Thanks to
 "			  Emanuele Giaquinta for his patches)
 "
@@ -186,7 +208,7 @@
 "		      else are following each other, the algorithm do not indent the way it
 "		      should.
 "		      That will be corrected in the next version.
-" 
+"
 "  If you find a bug, please e-mail me at John.wellesz (AT) teaser (DOT) fr
 "  with an example of code that breaks the algorithm.
 "
@@ -199,9 +221,9 @@
 "
 "
 "	In the case you have syntax errors in your script such as end of HereDoc
-"	tags not at col 1 you'll have to indent your file 2 times (This script 
+"	tags not at col 1 you'll have to indent your file 2 times (This script
 "	will automatically put HereDoc end tags at col 1).
-" 
+"
 
 " NOTE: If you are editing file in Unix file format and that (by accident)
 " there are '\r' before new lines, this script won't be able to proceed
@@ -217,7 +239,7 @@
 
 " Options: PHP_autoformatcomment = 0 to not enable autoformating of comment by
 "		    default, if set to 0, this script will let the 'formatoptions' setting intact.
-" 
+"
 " Options: PHP_default_indenting = # of sw (default is 0), # of sw will be
 "		   added to the indent of each line of PHP code.
 "
@@ -243,7 +265,9 @@
 "
 "			NOTE: The script will be a bit slower if you use this option because
 "			some optimizations won't be available.
-
+"
+" Options: PHP_vintage_case_default_indent = 1 (defaults to 0) to add a meaningless indent
+"		    befaore 'case:' and 'default":' statement in switch blocks.
 
 " Remove all the comments from this file:
 " :%s /^\s*".*\({{{\|xxx\)\@<!\n\c//g
@@ -278,11 +302,20 @@ else
     let b:PHP_BracesAtCodeLevel = 0
 endif
 
+
 if exists("PHP_autoformatcomment")
     let b:PHP_autoformatcomment = PHP_autoformatcomment
 else
     let b:PHP_autoformatcomment = 1
 endif
+
+if exists("PHP_vintage_case_default_indent")
+    let b:PHP_vintage_case_default_indent = PHP_vintage_case_default_indent
+else
+    let b:PHP_vintage_case_default_indent = 0
+endif
+
+
 
 let b:PHP_lastindented = 0
 let b:PHP_indentbeforelast = 0
@@ -302,7 +335,7 @@ let b:optionsset = 0
 " The 4 options belows are overridden by indentexpr so they are always off
 " anyway...
 setlocal nosmartindent
-setlocal noautoindent 
+setlocal noautoindent
 setlocal nocindent
 " autoindent must be on, so the line below is also useless...
 setlocal nolisp
@@ -330,15 +363,15 @@ let s:PHP_startindenttag = '<?\%(.*?>\)\@!\|<script[^>]*>\%(.*<\/script>\)\@!'
 
 
 function! GetLastRealCodeLNum(startline) " {{{
-    "Inspired from the function SkipJavaBlanksAndComments by Toby Allsopp for indent/java.vim 
-    
+    "Inspired from the function SkipJavaBlanksAndComments by Toby Allsopp for indent/java.vim
+
     let lnum = a:startline
-    
+
     " Used to indent <script.*> html tag correctly
     if b:GetLastRealCodeLNum_ADD && b:GetLastRealCodeLNum_ADD == lnum + 1
 	let lnum = b:GetLastRealCodeLNum_ADD
     endif
-    
+
     let old_lnum = lnum
 
     while lnum > 1
@@ -382,7 +415,7 @@ function! GetLastRealCodeLNum(startline) " {{{
 		let lastline = getline(lnum)
 	    endwhile
 	    if lastline =~ '^\s*?>'
-		" if line contains nothing but end tag 
+		" if line contains nothing but end tag
 		let lnum = lnum - 1
 	    else
 		break
@@ -391,15 +424,15 @@ function! GetLastRealCodeLNum(startline) " {{{
 
 
 	    " Manage "here document" tags
-	elseif lastline =~? '^\a\w*;$' && lastline !~? s:notPhpHereDoc
+	elseif lastline =~? '^\a\w*;\=$' && lastline !~? s:notPhpHereDoc " XXX 0607
 	    " match the end of a heredoc
-	    let tofind=substitute( lastline, '\([^;]\+\);', '<<<\1$', '')
+	    let tofind=substitute( lastline, '\(\a\w*\);\=', '<<<''\\=\1''\\=$', '') " XXX 0607
 	    while getline(lnum) !~? tofind && lnum > 1
 		let lnum = lnum - 1
 	    endwhile
 	else
 	    " if none of these were true then we are done
-	    break 
+	    break
 	endif
     endwhile
 
@@ -424,7 +457,8 @@ function! Skippmatch2()
 
     let line = getline(".")
 
-   if line =~ '\%(".*\)\@<=/\*\%(.*"\)\@=' || line =~ '\%(//.*\)\@<=/\*'
+    " XXX modified on 2008-05-08 to handle comments starting by '#'
+   if line =~ '\%(".*\)\@<=/\*\%(.*"\)\@=' || line =~ '\%(\%(//\|#\).*\)\@<=/\*'
        return 1
    else
        return 0
@@ -436,10 +470,10 @@ function! Skippmatch()  " {{{
     " times faster but you may have troubles with '{' inside comments or strings
     " that will break the indent algorithm...
     let synname = synIDattr(synID(line("."), col("."), 0), "name")
-    if synname == "Delimiter" || synname == "phpRegionDelimiter" || synname =~# "^phpParent" || synname == "phpArrayParens" || synname =~# "^phpBlock" || synname == "javaScriptBraces" || synname == "phpComment" && b:UserIsTypingComment
+    if synname == "Delimiter" || synname == "phpRegionDelimiter" || synname =~# "^phpParent" || synname == "phpArrayParens" || synname =~# '^php\%(Block\|Brace\)' || synname == "javaScriptBraces" || synname =~# "^phpComment" && b:UserIsTypingComment
 	return 0
     else
-"	echom synname
+"	echo "\"" . synname . "\"  " . getline(line("."));
 "	call getchar()
 	return 1
     endif
@@ -508,7 +542,7 @@ function! IslinePHP (lnum, tofind) " {{{
     let cline = getline(a:lnum)
 
     if a:tofind==""
-	" This correct the issue where lines beginning by a 
+	" This correct the issue where lines beginning by a
 	" single or double quote were not indented in some cases.
 	let tofind = "^\\s*[\"']*\\s*\\zs\\S"
     else
@@ -533,8 +567,8 @@ function! IslinePHP (lnum, tofind) " {{{
     endif
 endfunction " }}}
 
-let s:notPhpHereDoc = '\%(break\|return\|continue\|exit\);'
-let s:blockstart = '\%(\%(\%(}\s*\)\=else\%(\s\+\)\=\)\=if\>\|else\>\|while\>\|switch\>\|for\%(each\)\=\>\|declare\>\|class\>\|interface\>\|abstract\>\|try\>\|catch\>\|[|&]\)'
+let s:notPhpHereDoc = '\%(break\|return\|continue\|exit\|else\)'
+let s:blockstart = '\%(\%(\%(}\s*\)\=else\%(\s\+\)\=\)\=if\>\|else\>\|while\>\|switch\>\|for\%(each\)\=\>\|declare\>\|class\>\|interface\>\|abstract\>\|try\>\|catch\>\)'
 
 " make sure the options needed for this script to work correctly are set here
 " for the last time. They could have been overridden by any 'onevent'
@@ -551,7 +585,7 @@ function! ResetOptions()
 
 	    " Set the comment setting to something correct for PHP
 	    setlocal comments=s1:/*,mb:*,ex:*/,://,:#
-	    
+
 	    " disable Auto-wrap of text
 	    setlocal formatoptions-=t
 	    " Allow formatting of comments with "gq"
@@ -595,7 +629,7 @@ function! GetPhpIndent()
 
     " Let's detect if we are indenting just one line or more than 3 lines
     " in the last case we can slightly optimize our algorithm
-    if !b:PHP_indentinghuge && b:PHP_lastindented > b:PHP_indentbeforelast 
+    if !b:PHP_indentinghuge && b:PHP_lastindented > b:PHP_indentbeforelast
 	if b:PHP_indentbeforelast
 	    let b:PHP_indentinghuge = 1
 	    echom 'Large indenting detected, speed optimizations engaged'
@@ -605,7 +639,7 @@ function! GetPhpIndent()
 
     " If the line we are indenting isn't directly under the previous non-blank
     " line of the file then deactivate the optimization procedures and reset
-    " status variable (we restart for scratch)
+    " status variable (we restart from scratch)
     if b:InPHPcode_checked && prevnonblank(v:lnum - 1) != b:PHP_lastindented
 	if b:PHP_indentinghuge
 	    echom 'Large indenting deactivated'
@@ -646,7 +680,7 @@ function! GetPhpIndent()
 		let b:InPHPcode = 1
 		let b:InPHPcode_tofind = ""
 
-		if synname == "phpComment"
+		if synname =~# "^phpComment"
 		    let b:UserIsTypingComment = 1
 		else
 		    let b:UserIsTypingComment = 0
@@ -661,11 +695,11 @@ function! GetPhpIndent()
 		let b:UserIsTypingComment = 0
 
 		let lnum = v:lnum - 1
-		while getline(lnum) !~? '<<<\a\w*$' && lnum > 1
+		while getline(lnum) !~? '<<<''\=\a\w*''\=$' && lnum > 1
 		    let lnum = lnum - 1
 		endwhile
 
-		let b:InPHPcode_tofind = substitute( getline(lnum), '^.*<<<\(\a\w*\)\c', '^\\s*\1;$', '')
+		let b:InPHPcode_tofind = substitute( getline(lnum), '^.*<<<''\=\(\a\w*\)''\=$', '^\\s*\1;\\=$', '') " XXX 0607
 	    endif
 	else
 	    " IslinePHP returned "" => we are not in PHP or Javascript
@@ -735,9 +769,9 @@ function! GetPhpIndent()
 	    endif
 
 	    " Was last line the start of a HereDoc ?
-	elseif last_line =~? '<<<\a\w*$' 
+	elseif last_line =~? '<<<''\=\a\w*''\=$' " XXX 0607
 	    let b:InPHPcode = 0
-	    let b:InPHPcode_tofind = substitute( last_line, '^.*<<<\(\a\w*\)\c', '^\\s*\1;$', '')
+	    let b:InPHPcode_tofind = substitute( last_line, '^.*<<<''\=\(\a\w*\)''\=$', '^\\s*\1;\\=$', '') " XXX 0607
 
 	    " Skip /* \n+ */ comments except when the user is currently
 	    " writing them or when it is a comment (ie: not a code put in comment)
@@ -755,7 +789,7 @@ function! GetPhpIndent()
 	endif
     endif " }}}
 
-    
+
     " Non PHP code is let as it is
     if !b:InPHPcode && !b:InPHPcode_and_script
 	return -1
@@ -809,12 +843,12 @@ function! GetPhpIndent()
 
     " PHP end tags are always at col 1, useless to indent unless if it's
     " followed by a start tag on the same line
-    if  cline =~ '^\s*?>' && cline !~# '<?'  
+    if  cline =~ '^\s*?>' && cline !~# '<?'
 	return 0
     endif
 
     " put HereDoc end tags at start of lines
-    if cline =~? '^\s*\a\w*;$' && cline !~? s:notPhpHereDoc
+    if cline =~? '^\s*\a\w*;$\|^\a\w*$' && cline !~? s:notPhpHereDoc " XXX 0607
 	return 0
     endif " }}}
 
@@ -870,10 +904,12 @@ function! GetPhpIndent()
 
     " if the last line is a stated line and it's not indented then why should
     " we indent this one??
+    " Do not do this if the last line is a ')' because array indentation can
+    " fail...
     " if optimized mode is active and nor current or previous line are an 'else'
     " or the end of a possible bracketless thing then indent the same as the previous
     " line
-    if last_line =~ '[;}]'.endline && last_line !~# defaultORcase 
+    if last_line =~ '[;}]'.endline && last_line !~ '^)' && last_line !~# defaultORcase " Added && last_line !~ '^)' on 2007-12-30
 	if ind==b:PHP_default_indenting
 	    " if no indentation for the previous line
 	    return b:PHP_default_indenting
@@ -885,7 +921,7 @@ function! GetPhpIndent()
     " used to prevent redundant tests in the last part of the script
     let LastLineClosed = 0
 
-    let terminated = '\%(;\%(\s*?>\)\=\|<<<\a\w*\|}\)'.endline
+    let terminated = '\%(;\%(\s*?>\)\=\|<<<''\=\a\w*''\=$\|^\s*}\)'.endline " XXX 0607
     " What is a terminated line?
     " - a line terminated by a ";" optionally followed by a "?>"
     " - a HEREDOC starter line (the content of such block is never seen by this script)
@@ -894,7 +930,7 @@ function! GetPhpIndent()
     let unstated   = '\%(^\s*'.s:blockstart.'.*)\|\%(//.*\)\@<!\<e'.'lse\>\)'.endline
     " What is an unstated line?
     " - an "else" at the end of line
-    " - a  s:blockstart (if while etc...) followed by anything and a ")" at
+    " - a  s:blockstart (if while etc...) followed by anything but a ";" at
     "   the end of line
 
     " if the current line is an 'else' starting line
@@ -904,13 +940,14 @@ function! GetPhpIndent()
 	" prevent optimized to work at next call
 	let b:PHP_CurrentIndentLevel = b:PHP_default_indenting
 	return indent(FindTheIfOfAnElse(v:lnum, 1))
-    elseif cline =~ '^\s*{'
+    elseif cline =~ '^\s*)\=\s*{'
 	let previous_line = last_line
 	let last_line_num = lnum
 
+	" let's find the indent of the block starter (if, while, for, etc...)
 	while last_line_num > 1
 
-	    if previous_line =~ '^\s*\%(' . s:blockstart . '\|\%([a-zA-Z]\s*\)*function\)' && previous_line !~ '^\s*[|&]'
+	    if previous_line =~ '^\s*\%(' . s:blockstart . '\|\%([a-zA-Z]\s*\)*function\)'
 
 		let ind = indent(last_line_num)
 
@@ -919,21 +956,23 @@ function! GetPhpIndent()
 		    let ind = ind + &sw
 		endif
 
-		return ind 
+		return ind
 	    endif
 
 	    let last_line_num = last_line_num - 1
 	    let previous_line = getline(last_line_num)
 	endwhile
 
-    elseif last_line =~# unstated && cline !~ '^\s*{\|^\s*);\='.endline
-	let ind = ind + &sw
+    elseif last_line =~# unstated && cline !~ '^\s*);\='.endline
+	let ind = ind + &sw " we indent one level further when the preceding line is not stated
+    "echo "42"
+    "call getchar()
 	return ind
 
 	" If the last line is terminated by ';' or if it's a closing '}'
 	" We need to check if this isn't the end of a multilevel non '{}'
 	" structure such as:
-	" Exemple: 
+	" Exemple:
 	"			if ($truc)
 	"				echo 'truc';
 	"
@@ -949,7 +988,7 @@ function! GetPhpIndent()
 	"
 	"			$thing =
 	"				"something";
-    elseif ind != b:PHP_default_indenting && last_line =~ terminated
+    elseif (ind != b:PHP_default_indenting || last_line =~ '^)' ) && last_line =~ terminated " Added || last_line =~ '^)' on 2007-12-30 (array indenting [rpblem broke other things)
 	" If we are here it means that the previous line is:
 	" - a *;$ line
 	" - a [beginning-blanck] } followed by anything but a { $
@@ -1021,13 +1060,13 @@ function! GetPhpIndent()
 		    break
 		endif
 
-		if one_ahead_indent == two_ahead_indent || last_line_num < 1 
+		if one_ahead_indent == two_ahead_indent || last_line_num < 1
 		    " So the previous line and the line before are at the same
 		    " col. Now we just have to check if the line before is a ;$ or [}]$ ended line
 		    " we always check the most ahead line of the 2 lines so
 		    " it's useless to match ')$' since the lines couldn't have
 		    " the same indent...
-		    if previous_line =~# '[;}]'.endline || last_line_num < 1
+		    if previous_line =~# '\%(;\|^\s*}\)'.endline || last_line_num < 1
 			break
 		    endif
 		endif
@@ -1041,7 +1080,7 @@ function! GetPhpIndent()
 	    " from acting in some special cases
 	    let b:PHP_CurrentIndentLevel = b:PHP_default_indenting
 
-	    " case and default are indented 1 level below
+	    " case and default are indented 1 level below the surrounding code
 	    if cline =~# defaultORcase
 		let ind = ind - &sw
 	    endif
@@ -1070,6 +1109,8 @@ function! GetPhpIndent()
 
     " Indent blocks enclosed by {} or () (default indenting)
     if !LastLineClosed
+    "echo "start"
+    "call getchar()
 	" the last line isn't a .*; or a }$ line
 	" Indent correctly multilevel and multiline '(.*)' things
 
@@ -1081,9 +1122,12 @@ function! GetPhpIndent()
 		let ind = ind + &sw
 	    endif
 
-	    if b:PHP_BracesAtCodeLevel || cline !~# defaultORcase
+"    echo "43"
+"    call getchar()
+	    if b:PHP_BracesAtCodeLevel || b:PHP_vintage_case_default_indent == 1 || cline !~# defaultORcase
 		" case and default are not indented inside blocks
 		let b:PHP_CurrentIndentLevel = ind
+
 		return ind
 	    endif
 
@@ -1098,27 +1142,44 @@ function! GetPhpIndent()
 	    if openedparent != lnum
 		let ind = indent(openedparent)
 	    endif
-
-	    " In all other cases if the last line isn't terminated indent 1
-	    " level higher but only if the line before the last line wasn't
-	    " indented for the same reason.
-
-	elseif cline !~ '^\s*{' && pline =~ '\%(;\%(\s*?>\)\=\|<<<\a\w*\|{\|^\s*'.s:blockstart.'\s*(.*)\)'.endline.'\|^\s*}\|'.defaultORcase
-
+	    " if the line before starts a block then we need to indent the
+	    " current line.
+	elseif last_line =~ '^\s*'.s:blockstart
 	    let ind = ind + &sw
 
+	elseif last_line =~# defaultORcase
+	    let ind = ind + &sw
+
+	    " In all other cases if the last line isn't terminated indent 1
+	    " level higher but only if the last line wasn't already indented
+	    " for the same "code event"/reason. IE: if the line before the
+	    " last is terminated.
+	    "
+	    " 2nd possibility:
+	    "	    - Test if the line before the previous is terminated or is
+	    "	    a default/case if yes indent else let since it must have
+	    "	    been indented correctly already
+
+	"elseif cline !~ '^\s*{' && pline =~ '\%(;\%(\s*?>\)\=\|<<<\a\w*\|{\|^\s*'.s:blockstart.'.*)\)'.endline.'\|^\s*}\|'.defaultORcase
+	elseif pline =~ '\%(;\%(\s*?>\)\=\|<<<''\=\a\w*''\=$\|^\s*}\|{\)'.endline . '\|' . defaultORcase
+
+	    "echo pline. "     " . ind
+	    "call getchar()
+	    let ind = ind + &sw
 	endif
 
-    elseif last_line =~# defaultORcase
-	let ind = ind + &sw
     endif
 
-    " If the current line closes a multiline function call or array def XXX
+    "echo "end"
+    "call getchar()
+    " If the current line closes a multiline function call or array def
     if cline =~  '^\s*);\='
 	let ind = ind - &sw
-	" CASE and DEFAULT are indented at the same level than the SWITCH
-    elseif cline =~# defaultORcase
+	" CASE and DEFAULT are indented a level below the surrounding code.
+    elseif cline =~# defaultORcase && last_line !~# defaultORcase
 	let ind = ind - &sw
+    "echom "fuck!"
+    "call getchar()
 
     endif
 
