@@ -2,9 +2,15 @@
 " Language:	PHP
 " Author:	John Wellesz <John.wellesz (AT) teaser (DOT) fr>
 " URL:		http://www.2072productions.com/vim/indent/php.vim
-" Last Change:  2008 June 7th
+" Last Change:  2008 October 26th
 " Newsletter:   http://www.2072productions.com/?to=php-indent-for-vim-newsletter.php
-" Version:	1.28
+" Version:	1.29
+"
+"
+" Changes: 1.29		- Fixed php file detection for ResetOptions() used for
+"			  comments formatting. It now uses the same tests as
+"			  filetype.vim. ResetOptions() will be correctly
+"			  called for *.phtml, *.ctp and *.inc files.
 "
 "
 " Changes: 1.28		- End HEREDOC delimiters were not considered as such
@@ -217,12 +223,15 @@
 "
 
 " NOTE: This script must be used with PHP syntax ON and with the php syntax
-"	script by Lutz Eymers (http://www.isp.de/data/php.vim ) that's the script bundled with Gvim.
+"	script by Lutz Eymers (http://www.isp.de/data/php.vim ) or with the
+"	script by Peter Hodge (http://www.vim.org/scripts/script.php?script_id=1571 )
+"	the later is bunbdled by default with Vim 7.
 "
 "
-"	In the case you have syntax errors in your script such as end of HereDoc
-"	tags not at col 1 you'll have to indent your file 2 times (This script
-"	will automatically put HereDoc end tags at col 1).
+"	In the case you have syntax errors in your script such as HereDoc end
+"	identifiers not at col 1 you'll have to indent your file 2 times (This
+"	script will automatically put HereDoc end identifiers at col 1 if
+"	they are followed by a ';').
 "
 
 " NOTE: If you are editing file in Unix file format and that (by accident)
@@ -246,7 +255,7 @@
 " Options: PHP_removeCRwhenUnix = 1 to make the script automatically remove CR
 "		   at end of lines (by default this option is unset), NOTE that you
 "		   MUST remove CR when the fileformat is UNIX else the indentation
-"		   won't be correct...
+"		   won't be correct!
 "
 " Options: PHP_BracesAtCodeLevel = 1 to indent the '{' and '}' at the same
 "		   level than the code they contain.
@@ -575,12 +584,12 @@ let s:blockstart = '\%(\%(\%(}\s*\)\=else\%(\s\+\)\=\)\=if\>\|else\>\|while\>\|s
 " associated setting file...
 let s:autorestoptions = 0
 if ! s:autorestoptions
-    au BufWinEnter,Syntax	*.php,*.php3,*.php4,*.php5	call ResetOptions()
+    au BufWinEnter,Syntax	*.php,*.php\d,*.phtml,*.ctp,*.inc	call ResetOptions()
     let s:autorestoptions = 1
 endif
 
 function! ResetOptions()
-    if ! b:optionsset
+    if ! b:optionsset && &filetype == "php" 
 	if b:PHP_autoformatcomment
 
 	    " Set the comment setting to something correct for PHP
@@ -632,7 +641,7 @@ function! GetPhpIndent()
     if !b:PHP_indentinghuge && b:PHP_lastindented > b:PHP_indentbeforelast
 	if b:PHP_indentbeforelast
 	    let b:PHP_indentinghuge = 1
-	    echom 'Large indenting detected, speed optimizations engaged'
+	    echom 'Large indenting detected, speed optimizations engaged (v1.28)'
 	endif
 	let b:PHP_indentbeforelast = b:PHP_lastindented
     endif
