@@ -2,9 +2,15 @@
 " Language:	PHP
 " Author:	John Wellesz <John.wellesz (AT) teaser (DOT) fr>
 " URL:		http://www.2072productions.com/vim/indent/php.vim
-" Last Change:  2008 October 26th
+" Last Change:  2008 November 22nd
 " Newsletter:   http://www.2072productions.com/?to=php-indent-for-vim-newsletter.php
-" Version:	1.29
+" Version:	1.30
+"
+"
+" Changes: 1.30		- Fixed empty case/default identation again :/
+"			- The ResetOptions() function will be called each time
+"			  the ftplugin calls this script, previously it was
+"			  executed on BufWinEnter and Syntax events.
 "
 "
 " Changes: 1.29		- Fixed php file detection for ResetOptions() used for
@@ -363,6 +369,7 @@ endif
 
 " Only define the functions once per Vim session.
 if exists("*GetPhpIndent")
+    call ResetPhpOptions()
     finish " XXX
 endif
 
@@ -582,13 +589,13 @@ let s:blockstart = '\%(\%(\%(}\s*\)\=else\%(\s\+\)\=\)\=if\>\|else\>\|while\>\|s
 " make sure the options needed for this script to work correctly are set here
 " for the last time. They could have been overridden by any 'onevent'
 " associated setting file...
-let s:autorestoptions = 0
-if ! s:autorestoptions
-    au BufWinEnter,Syntax	*.php,*.php\d,*.phtml,*.ctp,*.inc	call ResetOptions()
-    let s:autorestoptions = 1
+let s:autoresetoptions = 0
+if ! s:autoresetoptions
+    "au BufWinEnter,Syntax	*.php,*.php\d,*.phtml,*.ctp,*.inc	call ResetPhpOptions()
+    let s:autoresetoptions = 1
 endif
 
-function! ResetOptions()
+function! ResetPhpOptions()
     if ! b:optionsset && &filetype == "php" 
 	if b:PHP_autoformatcomment
 
@@ -613,6 +620,8 @@ function! ResetOptions()
 	let b:optionsset = 1
     endif
 endfunc
+
+call ResetPhpOptions()
 
 function! GetPhpIndent()
     "##############################################
@@ -641,7 +650,7 @@ function! GetPhpIndent()
     if !b:PHP_indentinghuge && b:PHP_lastindented > b:PHP_indentbeforelast
 	if b:PHP_indentbeforelast
 	    let b:PHP_indentinghuge = 1
-	    echom 'Large indenting detected, speed optimizations engaged (v1.28)'
+	    echom 'Large indenting detected, speed optimizations engaged (v1.30 BETA 1)'
 	endif
 	let b:PHP_indentbeforelast = b:PHP_lastindented
     endif
@@ -1118,8 +1127,9 @@ function! GetPhpIndent()
 
     " Indent blocks enclosed by {} or () (default indenting)
     if !LastLineClosed
-    "echo "start"
-    "call getchar()
+	"echo "start"
+	"call getchar()
+
 	" the last line isn't a .*; or a }$ line
 	" Indent correctly multilevel and multiline '(.*)' things
 
@@ -1131,8 +1141,8 @@ function! GetPhpIndent()
 		let ind = ind + &sw
 	    endif
 
-"    echo "43"
-"    call getchar()
+	    "    echo "43"
+	    "    call getchar()
 	    if b:PHP_BracesAtCodeLevel || b:PHP_vintage_case_default_indent == 1 || cline !~# defaultORcase
 		" case and default are not indented inside blocks
 		let b:PHP_CurrentIndentLevel = ind
@@ -1156,25 +1166,29 @@ function! GetPhpIndent()
 	elseif last_line =~ '^\s*'.s:blockstart
 	    let ind = ind + &sw
 
-	elseif last_line =~# defaultORcase
+	elseif last_line =~# defaultORcase && cline !~# defaultORcase
 	    let ind = ind + &sw
+	    "echo cline. "  --test 1--   " . ind
+	    "call getchar()
 
 	    " In all other cases if the last line isn't terminated indent 1
 	    " level higher but only if the last line wasn't already indented
 	    " for the same "code event"/reason. IE: if the line before the
 	    " last is terminated.
 	    "
-	    " 2nd possibility:
+	    " 2nd explanation:
 	    "	    - Test if the line before the previous is terminated or is
 	    "	    a default/case if yes indent else let since it must have
 	    "	    been indented correctly already
 
 	"elseif cline !~ '^\s*{' && pline =~ '\%(;\%(\s*?>\)\=\|<<<\a\w*\|{\|^\s*'.s:blockstart.'.*)\)'.endline.'\|^\s*}\|'.defaultORcase
-	elseif pline =~ '\%(;\%(\s*?>\)\=\|<<<''\=\a\w*''\=$\|^\s*}\|{\)'.endline . '\|' . defaultORcase
+	elseif pline =~ '\%(;\%(\s*?>\)\=\|<<<''\=\a\w*''\=$\|^\s*}\|{\)'.endline . '\|' . defaultORcase && cline !~# defaultORcase
 
 	    "echo pline. "     " . ind
 	    "call getchar()
 	    let ind = ind + &sw
+	    "echo pline. "  --test 2--   " . ind
+	    "call getchar()
 	endif
 
     endif
