@@ -1,6 +1,8 @@
 This is a mirror of http://www.vim.org/scripts/script.php?script_id=1120
 
-(The version 1.23 of this script is already included in VIM 7)
+GitHub: https://github.com/2072/PHP-Indenting-for-VIm
+
+(The version 1.33 of this script is already included in VIM 7.3)
 
 Features:
 - Indent "perfectly" PHP code.
@@ -98,10 +100,10 @@ bye();
 That's all folks!
 
 This script can also be found there: (with colorful examples)
-http://www.2072productions.com/?to=phpindent.txt
+http://www.2072productions.com/to/phpindent.txt
 
 There is also a newsletter where you can subscribe at:
-http://www.2072productions.com/?to=php-indent-for-vim-newsletter.php
+http://www.2072productions.com/to/php-indent-for-vim-newsletter.php
 (only about new releases of this script)
 
 Enjoy :)
