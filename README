@@ -2,17 +2,17 @@ This is a mirror of http://www.vim.org/scripts/script.php?script_id=1120
 
 GitHub: https://github.com/2072/PHP-Indenting-for-VIm
 
-(The version 1.33 of this script is already included in VIM 7.3)
+(The version 1.39 of this script is already included in VIM 7.4)
 
 Features:
-- Indent "perfectly" PHP code.
-- Comment or non-PHP code doesn't break the algorithm.
-- Non-PHP code, multiline /**/ comments and "Here Document" content remain unchanged.
-- HTML <Script.*> tags are indented as PHP and like if their content was part of the surrounding PHP code.
-- Fast optimized indenting, the script knows when it's indenting large blocks and skips some unnecessary tests...
-- Support folding (folds don't break the indenting)
+- Indents PHP code as "perfectly" as possible.
+- Comments' content or non-PHP code are ignored and don't break the algorithm.
+- Non-PHP code, multi-line /**/ comments and "Here Document" content remain unchanged.
+- HTML <Script.*> tags' content is indented as PHP and like if it was part of the surrounding PHP code.
+- Fast optimized indenting, the script knows when it's indenting large blocks and skips some unnecessary tests.
+- Support folding (fold markers don't break the indenting)
 - Auto-formatting for comments (using the Vim option formatoptions=qroc).
-- Indent correctly complex "non bracketted blocks" (like in language C):
+- Indent correctly complex "non bracketed blocks":
 
     Example: (start of line spaces are replaced by ____)
 <?php
@@ -29,8 +29,8 @@ $command_hist = TRUE;
 
 - Direct indenting, the text is indented as you type it.
 - switch/case are indented correctly.
-- Script source code well commented.
-- Bug free as far as I know :)
+- Well commented source code.
+- Bug free as far as I know.
 
 A more complete example of its capabilities:
 
@@ -61,8 +61,8 @@ ________</script>
 </head>
 <body>
 
-<b>some closing and oppenning bracket here } } {
-nothing to indent here :)
+<b>some closing and oppening bracket here } } {
+nothing to indent here
 </b>
 
 </body>
@@ -99,7 +99,7 @@ bye();
 
 That's all folks!
 
-This script can also be found there: (with colorful examples)
+This script can also be found there: (with a colourful example)
 http://www.2072productions.com/to/phpindent.txt
 
 There is also a newsletter where you can subscribe at:
@@ -107,4 +107,3 @@ http://www.2072productions.com/to/php-indent-for-vim-newsletter.php
 (only about new releases of this script)
 
 Enjoy :)
-
