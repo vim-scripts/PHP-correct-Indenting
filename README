@@ -2,7 +2,7 @@ This is a mirror of http://www.vim.org/scripts/script.php?script_id=1120
 
 GitHub: https://github.com/2072/PHP-Indenting-for-VIm
 
-(The version 1.39 of this script is already included in VIM 7.4)
+(The version 1.39 of this script is included in VIM 7.4)
 
 Features:
 - Indents PHP code as "perfectly" as possible.
